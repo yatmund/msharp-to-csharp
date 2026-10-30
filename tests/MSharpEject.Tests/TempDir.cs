@@ -18,3 +18,10 @@ sealed class TempDir : IDisposable
         catch (IOException) { } // MSBuild nodes can still hold obj/ files.
     }
 }
+
+static class TestLog
+{
+    public static readonly string Directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "msharp-eject-tests");
+
+    public static RunLog Create() => new(RunLog.DefaultPath("test-" + Guid.NewGuid().ToString("N")[..8], Directory), "test");
+}

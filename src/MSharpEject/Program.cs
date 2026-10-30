@@ -1,8 +1,9 @@
+using MSharpEject;
 using MSharpEject.Audit;
 
 const string usage = """
     Usage:
-      msharp-eject audit <repo> [--out <file>] [--no-semantic]
+      msharp-eject audit <repo> [--out <file>] [--log <file>] [--no-semantic]
     """;
 
 if (args.Length < 2 || args[0] != "audit")
@@ -18,16 +19,41 @@ if (!Directory.Exists(repo))
     return 1;
 }
 
-var outIndex = Array.IndexOf(args, "--out");
-var outFile = outIndex >= 0 && outIndex + 1 < args.Length ? args[outIndex + 1] : null;
+string? Option(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+var outFile = Option("--out");
 
-var result = await Auditor.RunAsync(repo, semantic: !args.Contains("--no-semantic"), Console.Error.WriteLine);
-var markdown = Auditor.ToMarkdown(result);
+using var log = new RunLog(Option("--log") ?? RunLog.DefaultPath("audit"), "audit");
+log.Echo += Console.Error.WriteLine;
+Console.Error.WriteLine($"Log: {log.FilePath}");
 
-if (outFile == null) Console.WriteLine(markdown);
-else
+using var cancel = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
 {
-    File.WriteAllText(outFile, markdown);
-    Console.Error.WriteLine($"Wrote {outFile}");
+    e.Cancel = true;
+    cancel.Cancel();
+};
+
+try
+{
+    var result = await Auditor.RunAsync(repo, semantic: !args.Contains("--no-semantic"), log, cancel.Token);
+    var markdown = Auditor.ToMarkdown(result);
+
+    if (outFile == null) Console.WriteLine(markdown);
+    else
+    {
+        File.WriteAllText(outFile, markdown);
+        log.Info($"Wrote {Path.GetFullPath(outFile)}");
+    }
+    return 0;
 }
-return 0;
+catch (OperationCanceledException)
+{
+    log.Warn("Cancelled.");
+    return 130;
+}
+catch (Exception ex)
+{
+    log.Error("Audit failed", ex);
+    Console.Error.WriteLine($"Full details: {log.FilePath}");
+    return 2;
+}

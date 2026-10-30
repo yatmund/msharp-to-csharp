@@ -11,14 +11,20 @@ public static class OliveUsage
     public static bool IsGeeksAssembly(IAssemblySymbol? assembly) =>
         assembly != null && RepoScan.IsGeeksPackage(assembly.Name);
 
-    public static List<SymbolUse> Collect(IEnumerable<Compilation> compilations, Func<string, bool> isGeneratedPath)
+    /// <param name="progress">Fraction of syntax trees done; called from worker threads.</param>
+    public static List<SymbolUse> Collect(IEnumerable<Compilation> compilations, Func<string, bool> isGeneratedPath,
+        Action<double>? progress = null, CancellationToken cancel = default)
     {
         var uses = new ConcurrentDictionary<(string Assembly, string Symbol, string Kind), Tally>();
 
         // Vendored Olive source isn't usage of Olive.
-        foreach (var compilation in compilations.Where(c => !IsGeeksAssembly(c.Assembly)))
+        var targets = compilations.Where(c => !IsGeeksAssembly(c.Assembly)).ToList();
+        var total = Math.Max(1, targets.Sum(c => c.SyntaxTrees.Count()));
+        var done = 0;
+
+        foreach (var compilation in targets)
         {
-            Parallel.ForEach(compilation.SyntaxTrees, tree =>
+            Parallel.ForEach(compilation.SyntaxTrees, new ParallelOptions { CancellationToken = cancel }, tree =>
             {
                 var model = compilation.GetSemanticModel(tree);
                 var generated = isGeneratedPath(tree.FilePath);
@@ -33,6 +39,7 @@ public static class OliveUsage
                     var tally = uses.GetOrAdd((symbol.ContainingAssembly.Name, Display(symbol), Kind(symbol)), _ => new Tally());
                     tally.Add(tree.FilePath, generated);
                 }
+                progress?.Invoke((double)Interlocked.Increment(ref done) / total);
             });
         }
 

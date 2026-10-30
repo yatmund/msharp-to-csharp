@@ -50,7 +50,7 @@ public class AuditorTests
     {
         using var repo = FakeMSharpRepo();
 
-        var result = await Auditor.RunAsync(repo.Path, semantic: false, _ => { });
+        var result = await Auditor.RunAsync(repo.Path, semantic: false, TestLog.Create());
 
         await Assert.That(result.Packages.Select(p => p.Id)).IsEquivalentTo(["MSharp"]);
         await Assert.That(result.BuildSteps.Single().Text).IsEqualTo("dotnet msharp.dsl.dll /build /model");
@@ -65,21 +65,80 @@ public class AuditorTests
     public async Task Semantic_pass_loads_projects_and_resolves_olive_symbols(CancellationToken _)
     {
         using var repo = FakeMSharpRepo();
+        using var log = TestLog.Create();
+        var steps = new List<string>();
+        log.Progressed += u => { lock (steps) steps.Add(u.Step); };
 
-        var result = await Auditor.RunAsync(repo.Path, semantic: true, _ => { });
+        var result = await Auditor.RunAsync(repo.Path, semantic: true, log);
         var uses = result.Symbols.ToDictionary(s => s.Symbol);
 
         await Assert.That(uses["OliveExtensions.HasValue"].Count).IsEqualTo(1);
         await Assert.That(uses["OliveExtensions.HasValue"].GeneratedCount).IsEqualTo(0);
         await Assert.That(uses["Olive.GuidEntity"].GeneratedCount).IsEqualTo(1);
         await Assert.That(result.Symbols.All(s => s.Assembly == "Olive")).IsTrue();
+        await Assert.That(result.LoadErrors.Count).IsEqualTo(0);
+
+        await Assert.That(steps).Contains("Restoring Domain/Domain.csproj (1/2)");
+        await Assert.That(steps).Contains("Loading Olive/Olive.csproj (2/2)");
+        var text = RunLogTests.ReadShared(log.FilePath);
+        await Assert.That(text).Contains("> dotnet --info");
+        await Assert.That(text).Contains("> dotnet restore");
+        await Assert.That(text).Contains("Domain/Domain.csproj: ");
+    }
+
+    [Test]
+    [Timeout(180_000)]
+    public async Task Restore_failure_is_a_warning_and_a_load_error(CancellationToken _)
+    {
+        using var repo = new TempDir();
+        repo.Write("Domain/Domain.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup><PackageReference Include="Definitely.Not.A.Real.Package.Msharp.Eject" Version="9.9.9" /></ItemGroup>
+            </Project>
+            """);
+        using var log = TestLog.Create();
+        var echoed = new List<string>();
+        log.Echo += m => { lock (echoed) echoed.Add(m); };
+
+        var result = await Auditor.RunAsync(repo.Path, semantic: true, log);
+
+        await Assert.That(result.LoadErrors).Contains("Restore failed: Domain/Domain.csproj");
+        await Assert.That(echoed.Any(e => e.StartsWith("Warning: Restore failed for Domain/Domain.csproj"))).IsTrue();
+        await Assert.That(RunLogTests.ReadShared(log.FilePath)).Contains("Definitely.Not.A.Real.Package.Msharp.Eject");
+    }
+
+    [Test]
+    public async Task Progress_only_moves_forward_and_finishes_at_one()
+    {
+        using var repo = FakeMSharpRepo();
+        using var log = TestLog.Create();
+        var updates = new List<ProgressUpdate>();
+        log.Progressed += updates.Add;
+
+        await Auditor.RunAsync(repo.Path, semantic: false, log);
+
+        await Assert.That(updates[0]).IsEqualTo(new ProgressUpdate(0, "Listing files"));
+        await Assert.That(updates[^1]).IsEqualTo(new ProgressUpdate(1, "Done"));
+        await Assert.That(updates.Zip(updates.Skip(1)).All(p => p.Second.Fraction >= p.First.Fraction)).IsTrue();
+    }
+
+    [Test]
+    public async Task Cancelled_token_stops_the_audit()
+    {
+        using var repo = FakeMSharpRepo();
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+
+        await Assert.That(async () => await Auditor.RunAsync(repo.Path, semantic: true, TestLog.Create(), cancel.Token))
+            .Throws<OperationCanceledException>();
     }
 
     [Test]
     public async Task Markdown_report_has_every_section()
     {
         using var repo = FakeMSharpRepo();
-        var result = await Auditor.RunAsync(repo.Path, semantic: false, _ => { });
+        var result = await Auditor.RunAsync(repo.Path, semantic: false, TestLog.Create());
 
         var md = Auditor.ToMarkdown(result);
 
@@ -96,7 +155,7 @@ public class AuditorTests
         using var repo = new TempDir();
         repo.Write("M#/Model/Domain/Contact.cs", "class Contact : EntityType { }");
 
-        var md = Auditor.ToMarkdown(await Auditor.RunAsync(repo.Path, semantic: false, _ => { }));
+        var md = Auditor.ToMarkdown(await Auditor.RunAsync(repo.Path, semantic: false, TestLog.Create()));
 
         await Assert.That(md).Contains("No generated output. M# must run once before `eject`.");
     }

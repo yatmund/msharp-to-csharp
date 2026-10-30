@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MSharpEject.Gui/MSharpEject.Gui.csproj" />
     <Project Path="src/MSharpEject/MSharpEject.csproj" />
   </Folder>
   <Folder Name="/tests/">

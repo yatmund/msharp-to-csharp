@@ -1,0 +1,99 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:gui="using:MSharpEject.Gui"
+        x:Class="MSharpEject.Gui.MainWindow"
+        Title="msharp-eject"
+        Background="{DynamicResource AppBackground}"
+        Width="1200" Height="820" MinWidth="760" MinHeight="520">
+
+  <DockPanel Margin="24,20">
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Spacing="2">
+        <TextBlock Classes="title" Text="msharp-eject" />
+        <TextBlock Classes="muted" Text="See what it takes to move an M# app to plain .NET" />
+      </StackPanel>
+      <ComboBox Grid.Column="1" x:Name="ThemeBox" Width="130" VerticalAlignment="Center" ToolTip.Tip="Theme">
+        <ComboBoxItem Content="System" />
+        <ComboBoxItem Content="Light" />
+        <ComboBoxItem Content="Dark" />
+      </ComboBox>
+    </Grid>
+
+    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,16">
+      <StackPanel Spacing="12">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+          <TextBox x:Name="RepoPath" PlaceholderText="Path to an M# repository" VerticalContentAlignment="Center" />
+          <Button Grid.Column="1" x:Name="BrowseButton" Content="Browse…" />
+          <Button Grid.Column="2" x:Name="RunButton" Content="Run audit" Classes="accent" IsDefault="True" MinWidth="110" />
+          <Button Grid.Column="3" x:Name="CancelButton" Content="Cancel" IsVisible="False" MinWidth="110" />
+        </Grid>
+        <CheckBox x:Name="SemanticCheck" IsChecked="True">
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="Resolve Olive symbols" />
+            <Run Foreground="{DynamicResource MutedText}" Text="  restores and loads each project with Roslyn; slower, and the repo must restore on this machine" />
+          </TextBlock>
+        </CheckBox>
+        <StackPanel x:Name="ProgressPanel" Spacing="6" IsVisible="False">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="StepText" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" x:Name="ElapsedText" Classes="muted" />
+          </Grid>
+          <ProgressBar x:Name="ProgressBar" Minimum="0" Maximum="1" Height="6" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,14,0,0">
+      <TextBlock x:Name="StatusText" Classes="muted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="1" x:Name="SaveButton" Content="Save report…" IsEnabled="False" />
+      <Button Grid.Column="2" x:Name="OpenLogButton" Content="Open log" IsEnabled="False"
+              ToolTip.Tip="Full-detail log of the last run: every command, its output, and any errors" />
+    </Grid>
+
+    <ItemsControl DockPanel.Dock="Top" x:Name="StatsList" IsVisible="False" Margin="0,0,-10,6">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="gui:Stat">
+          <Border Classes="stat" Classes.attention="{Binding Attention}" ToolTip.Tip="{Binding Hint}">
+            <StackPanel Spacing="2">
+              <TextBlock Classes="value" Text="{Binding Value}" />
+              <TextBlock Classes="label" Text="{Binding Label}" />
+              <TextBlock Classes="label" Text="{Binding Hint}" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding Hint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <Border Classes="card" Padding="16,8,16,16">
+      <Panel>
+        <StackPanel x:Name="WelcomePanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="520">
+          <TextBlock Classes="title" Text="Audit an M# repository" HorizontalAlignment="Center" />
+          <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center"
+                     Text="Lists every Geeks Ltd dependency, the M# definitions and generated code, Windows-only build steps, deployment blockers, and each Olive API the code uses. It never changes source files." />
+          <Button x:Name="WelcomeBrowseButton" Content="Choose a repository…" Classes="accent" HorizontalAlignment="Center" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <DockPanel x:Name="ResultsPanel" IsVisible="False">
+          <TextBox DockPanel.Dock="Top" x:Name="FilterBox" PlaceholderText="Filter results" Margin="0,8,0,4" />
+          <TabControl x:Name="Tabs">
+            <TabItem x:Name="PackagesTab" Header="Packages"><DataGrid x:Name="PackagesGrid" /></TabItem>
+            <TabItem x:Name="DslTab" Header="M# definitions"><DataGrid x:Name="DslGrid" /></TabItem>
+            <TabItem x:Name="GeneratedTab" Header="Generated output"><DataGrid x:Name="GeneratedGrid" /></TabItem>
+            <TabItem x:Name="BuildStepsTab" Header="Build steps"><DataGrid x:Name="BuildStepsGrid" ToolTip.Tip="Double-click to open the file" /></TabItem>
+            <TabItem x:Name="BlockersTab" Header="Deployment blockers"><DataGrid x:Name="BlockersGrid" ToolTip.Tip="Double-click to open the file" /></TabItem>
+            <TabItem x:Name="SymbolsTab" Header="Olive symbols"><DataGrid x:Name="SymbolsGrid" /></TabItem>
+            <TabItem x:Name="LogTab" Header="Log">
+              <TextBox x:Name="LogBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" BorderThickness="0"
+                       Background="Transparent" FontFamily="Cascadia Mono,Consolas,Menlo,monospace" FontSize="12" />
+            </TabItem>
+          </TabControl>
+        </DockPanel>
+      </Panel>
+    </Border>
+  </DockPanel>
+</Window>

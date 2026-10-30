@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -19,23 +18,36 @@ public record AuditResult(
 
 public static class Auditor
 {
-    public static async Task<AuditResult> RunAsync(string repo, bool semantic, Action<string> log)
+    public static async Task<AuditResult> RunAsync(string repo, bool semantic, RunLog log, CancellationToken cancel = default)
     {
         repo = Path.GetFullPath(repo);
-        var files = RepoScan.RepoFiles(repo).ToList();
         string Rel(string f) => Path.GetRelativePath(repo, f).Replace('\\', '/');
+        log.Info($"Auditing {repo} ({(semantic ? "full" : "file scans only")})");
+        var scanShare = semantic ? 0.1 : 1.0;
 
-        var projects = files.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToList();
+        log.Progress(0, "Listing files");
+        var files = RepoScan.RepoFiles(repo).ToList();
+        var projects = files.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).OrderBy(Rel, StringComparer.Ordinal).ToList();
+        log.Detail($"{files.Count} files, {projects.Count} projects:\n" + string.Join("\n", projects.Select(Rel)));
+        cancel.ThrowIfCancellationRequested();
+
+        log.Progress(0.2 * scanShare, "Reading package references and build steps");
         var packages = projects.SelectMany(p => RepoScan.GeeksPackages(Rel(p), File.ReadAllText(p)))
             .Concat(files.Where(f => Path.GetFileName(f) == "dotnet-tools.json").SelectMany(f => RepoScan.GeeksTools(Rel(f), File.ReadAllText(f))))
             .Concat(files.Where(f => Path.GetFileName(f) == "package.json").SelectMany(f => RepoScan.GeeksNpmPackages(Rel(f), File.ReadAllText(f))))
             .ToList();
         var buildSteps = projects.SelectMany(p => RepoScan.BuildSteps(Rel(p), File.ReadAllText(p))).ToList();
+        cancel.ThrowIfCancellationRequested();
 
+        log.Progress(0.4 * scanShare, "Counting M# definitions");
         var dslFiles = files.Where(f => RepoScan.IsDslFile(Rel(f)) && f.EndsWith(".cs")).ToList();
         var dsl = RepoScan.DslInventory(dslFiles.Select(File.ReadAllText));
-        var generated = RepoScan.GeneratedFolderPaths.Select(g => RepoScan.ScanGeneratedFolder(repo, g)).ToList();
 
+        log.Progress(0.6 * scanShare, "Checking generated output");
+        var generated = RepoScan.GeneratedFolderPaths.Select(g => RepoScan.ScanGeneratedFolder(repo, g)).ToList();
+        cancel.ThrowIfCancellationRequested();
+
+        log.Progress(0.8 * scanShare, "Scanning for deployment blockers");
         var blockers = files
             .Where(f => !RepoScan.IsDslFile(Rel(f)) && !RepoScan.IsGeneratedFile(Rel(f)))
             .Where(f => new FileInfo(f).Length < 2_000_000)
@@ -45,55 +57,78 @@ public static class Auditor
         var symbols = new List<SymbolUse>();
         var loadErrors = new List<string>();
         if (semantic)
-            (symbols, loadErrors) = await CollectSymbolsAsync(repo, projects, Rel, log);
+            (symbols, loadErrors) = await CollectSymbolsAsync(repo, projects, Rel, log, cancel);
 
-        return new AuditResult(repo, packages, buildSteps, dsl, generated,
+        var result = new AuditResult(repo, packages, buildSteps, dsl, generated,
             dslFiles.Count == 0 ? null : dslFiles.Max(File.GetLastWriteTimeUtc), blockers, semantic, symbols, loadErrors);
+        log.Progress(1, "Done");
+        log.Info($"{packages.Count} Geeks package references, {dsl.Values.Sum()} M# items, {generated.Sum(g => g.Files)} generated files, " +
+                 $"{buildSteps.Count} build steps, {blockers.Count} blockers, {symbols.Count} Olive symbols, {loadErrors.Count} load errors");
+        return result;
     }
 
-    static async Task<(List<SymbolUse>, List<string>)> CollectSymbolsAsync(string repo, List<string> projects, Func<string, string> rel, Action<string> log)
+    static async Task<(List<SymbolUse>, List<string>)> CollectSymbolsAsync(
+        string repo, List<string> projects, Func<string, string> rel, RunLog log, CancellationToken cancel)
     {
         // DSL projects (#Model, #UI) get deleted, their MSharp usage doesn't matter.
         var targets = projects.Where(p => !Path.GetFileName(p).StartsWith('#') && !RepoScan.IsDslFile(rel(p))).ToList();
+        var errors = new List<string>();
 
-        foreach (var project in targets)
+        log.Progress(0.1, "Checking .NET SDK");
+        await ProcessRunner.RunAsync("dotnet", "--info", repo, log, cancel);
+
+        for (var i = 0; i < targets.Count; i++)
         {
-            log($"Restoring {rel(project)}...");
-            await Run("dotnet", $"restore \"{project}\"", repo, log);
+            log.Progress(0.1 + 0.3 * i / targets.Count, $"Restoring {rel(targets[i])} ({i + 1}/{targets.Count})");
+            using (log.Time("restore " + rel(targets[i])))
+            {
+                var restore = await ProcessRunner.RunAsync("dotnet", $"restore \"{targets[i]}\"", repo, log, cancel);
+                if (restore.ExitCode != 0)
+                {
+                    log.Warn($"Restore failed for {rel(targets[i])} (exit {restore.ExitCode}). Olive counts for it will be low. Full output is in the log.");
+                    errors.Add($"Restore failed: {rel(targets[i])}");
+                }
+            }
         }
 
         using var workspace = MSBuildWorkspace.Create();
-        var errors = new List<string>();
         workspace.RegisterWorkspaceFailedHandler(e =>
         {
+            log.Detail($"Workspace {e.Diagnostic.Kind}: {e.Diagnostic.Message}");
             if (e.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure) errors.Add(e.Diagnostic.Message);
         });
 
         var compilations = new List<Compilation>();
-        foreach (var path in targets)
+        for (var i = 0; i < targets.Count; i++)
         {
-            log($"Loading {rel(path)}...");
-            var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.FilePath == path)
-                ?? await workspace.OpenProjectAsync(path);
-            if (await project.GetCompilationAsync() is { } compilation) compilations.Add(compilation);
+            var path = targets[i];
+            log.Progress(0.4 + 0.4 * i / targets.Count, $"Loading {rel(path)} ({i + 1}/{targets.Count})");
+            using (log.Time("load " + rel(path)))
+            {
+                var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.FilePath == path)
+                    ?? await workspace.OpenProjectAsync(path, cancellationToken: cancel);
+                if (await project.GetCompilationAsync(cancel) is not { } compilation) continue;
+                compilations.Add(compilation);
+
+                // Expected while generated code is missing; logged so low counts can be explained.
+                var compileErrors = compilation.GetDiagnostics(cancel).Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+                log.Detail($"{rel(path)}: {compilation.SyntaxTrees.Count()} files, {compilation.References.Count()} references, {compileErrors.Count} compile errors");
+                foreach (var d in compileErrors.Take(100)) log.Detail("  " + d);
+            }
         }
 
-        log("Resolving Olive symbols...");
-        return (OliveUsage.Collect(compilations, f => RepoScan.IsGeneratedFile(rel(f))), errors);
-    }
-
-    static async Task Run(string exe, string args, string cwd, Action<string> log)
-    {
-        using var process = Process.Start(new ProcessStartInfo(exe, args)
+        log.Progress(0.8, "Resolving Olive symbols");
+        var lastBucket = 0;
+        using (log.Time("resolve symbols"))
         {
-            WorkingDirectory = cwd,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        })!;
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        if (process.ExitCode != 0) log($"  {exe} {args} failed:\n{await output}{await error}");
+            var symbols = OliveUsage.Collect(compilations, f => RepoScan.IsGeneratedFile(rel(f)), fraction =>
+            {
+                var bucket = (int)(fraction * 10);
+                if (bucket > Volatile.Read(ref lastBucket) && Interlocked.Exchange(ref lastBucket, bucket) < bucket)
+                    log.Progress(0.8 + 0.2 * fraction, $"Resolving Olive symbols ({bucket * 10}%)");
+            }, cancel);
+            return (symbols, errors);
+        }
     }
 
     public static string ToMarkdown(AuditResult r)

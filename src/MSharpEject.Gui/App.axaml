@@ -1,0 +1,100 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MSharpEject.Gui.App"
+             RequestedThemeVariant="Default">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="AppBackground" Color="#F4F5F7" />
+          <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="CardBorder" Color="#E4E6EA" />
+          <SolidColorBrush x:Key="MutedText" Color="#5E6672" />
+          <SolidColorBrush x:Key="AttentionText" Color="#B45309" />
+          <SolidColorBrush x:Key="AttentionBackground" Color="#FFF7ED" />
+          <SolidColorBrush x:Key="AttentionBorder" Color="#FED7AA" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="AppBackground" Color="#17181B" />
+          <SolidColorBrush x:Key="CardBackground" Color="#212226" />
+          <SolidColorBrush x:Key="CardBorder" Color="#303238" />
+          <SolidColorBrush x:Key="MutedText" Color="#9CA3AE" />
+          <SolidColorBrush x:Key="AttentionText" Color="#FBBF24" />
+          <SolidColorBrush x:Key="AttentionBackground" Color="#2A2216" />
+          <SolidColorBrush x:Key="AttentionBorder" Color="#5C4410" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+    <Style Selector="Border.stat">
+      <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="14,10" />
+      <Setter Property="Margin" Value="0,0,10,10" />
+      <Setter Property="Width" Value="176" />
+    </Style>
+    <Style Selector="Border.stat.attention">
+      <Setter Property="Background" Value="{DynamicResource AttentionBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AttentionBorder}" />
+    </Style>
+    <Style Selector="Border.stat.attention TextBlock.value">
+      <Setter Property="Foreground" Value="{DynamicResource AttentionText}" />
+    </Style>
+
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
+
+    <Style Selector="Button, ComboBox, TextBox">
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="DataGrid">
+      <Setter Property="AutoGenerateColumns" Value="True" />
+      <Setter Property="IsReadOnly" Value="True" />
+      <Setter Property="CanUserSortColumns" Value="True" />
+      <Setter Property="CanUserResizeColumns" Value="True" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" />
+      <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
+    <Style Selector="TabItem">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="Padding" Value="10,4" />
+    </Style>
+  </Application.Styles>
+</Application>

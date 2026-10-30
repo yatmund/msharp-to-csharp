@@ -10,6 +10,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -36,6 +38,13 @@ jobs:
               tar -czf "dist/msharp-eject-$version-$rid.tar.gz" -C publish "msharp-eject-$version-$rid"
             fi
           done
+
+      - name: Pack dotnet tool
+        run: dotnet pack src/MSharpEject -c Release -p:Version="${GITHUB_REF_NAME#v}" -o dist
+
+      - name: Push dotnet tool to NuGet
+        if: ${{ env.NUGET_API_KEY != '' }}
+        run: dotnet nuget push "dist/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub release
         env:

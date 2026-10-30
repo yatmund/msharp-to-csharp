@@ -8,7 +8,16 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>msharp-eject</ToolCommandName>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageId>msharp-eject</PackageId>
+    <Authors>Yatmund Christiansen</Authors>
+    <Description>Moves an M# application off M# and the Olive framework to plain ASP.NET Core: audit, eject M#, replace Olive.</Description>
+    <PackageTags>msharp;olive;migration;roslyn;codemod</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.6.0" />

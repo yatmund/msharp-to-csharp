@@ -75,7 +75,7 @@ public class MainWindowTests
 
             var before = (string)window.FindControl<TabItem>("BlockersTab")!.Header!;
             window.FindControl<TextBox>("FilterBox")!.Text = "docker";
-            Dispatcher.UIThread.RunJobs();
+            window.ApplyFilter();
             return new
             {
                 Before = before,
@@ -107,6 +107,82 @@ public class MainWindowTests
         await Assert.That(view.Step).IsEqualTo("Done");
         await Assert.That(view.LogBox).Contains("Scanning for deployment blockers");
         await Assert.That(RunLogTests.ReadShared(view.LastLogPath!)).Contains("Auditing " + Path.GetFullPath(repo.Path));
+    }
+
+    [Test]
+    [Timeout(300_000)]
+    [NotInParallel("theme")]
+    public async Task Eject_previews_then_applies(CancellationToken _)
+    {
+        using var repo = FakeRepo.Create();
+        await FakeRepo.CommitAllAsync(repo.Path);
+
+        var view = await OnUiThread(async () =>
+        {
+            var window = new MainWindow(repo.Path) { LogDirectory = TestLog.Directory, ThemeFile = ThemeFile };
+            window.Show();
+            window.FindControl<CheckBox>("VerifyCheck")!.IsChecked = false;
+            window.FindControl<CheckBox>("SemanticCheck")!.IsChecked = false;
+
+            window.SetTheme("Dark");
+            window.Width = 1200;
+            window.Height = 760;
+            await window.PreviewAsync("eject");
+            Dispatcher.UIThread.RunJobs();
+            var shot = Path.Combine(AppContext.BaseDirectory, "TestResults", "eject-preview.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(shot)!);
+            using (var file = File.Create(shot)) window.CaptureRenderedFrame()!.Save(file, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            window.SetTheme("System");
+            var preview = new
+            {
+                Banner = window.FindControl<TextBlock>("OutcomeText")!.Text,
+                Apply = window.FindControl<Button>("ApplyButton")!.IsVisible,
+                Changes = (string)window.FindControl<TabItem>("ChangesTab")!.Header!,
+                MSharpStillThere = Directory.Exists(Path.Combine(repo.Path, "M#")),
+            };
+
+            await window.ApplyAsync();
+            return new
+            {
+                Preview = preview,
+                Reaudited = window.Result != null,
+                BannerStillShown = window.FindControl<Border>("OutcomeBanner")!.IsVisible,
+                Banner = window.FindControl<TextBlock>("OutcomeText")!.Text,
+                Apply = window.FindControl<Button>("ApplyButton")!.IsVisible,
+                Problem = window.FindControl<Border>("OutcomeBanner")!.Classes.Contains("problem"),
+            };
+        });
+
+        await Assert.That(view.Preview.Banner).StartsWith("Eject M# will make 4 changes");
+        await Assert.That(view.Preview.Apply).IsTrue();
+        await Assert.That(view.Preview.Changes).IsEqualTo("Changes (4)");
+        await Assert.That(view.Preview.MSharpStillThere).IsTrue();
+        await Assert.That(view.Banner).StartsWith("Eject M# applied 4 changes. Not verified");
+        await Assert.That(view.Apply).IsFalse();
+        await Assert.That(view.Problem).IsFalse();
+        await Assert.That(view.Reaudited).IsTrue();
+        await Assert.That(view.BannerStillShown).IsTrue();
+        await Assert.That(Directory.Exists(Path.Combine(repo.Path, "M#"))).IsFalse();
+    }
+
+    [Test]
+    public async Task Eject_problem_shows_in_banner_without_apply()
+    {
+        using var repo = new TempDir();
+        repo.Write("Domain/Domain.csproj", "<Project />");
+
+        var (banner, apply, problem) = await OnUiThread(async () =>
+        {
+            var window = new MainWindow(repo.Path) { LogDirectory = TestLog.Directory, ThemeFile = ThemeFile };
+            window.Show();
+            await window.PreviewAsync("eject");
+            return (window.FindControl<TextBlock>("OutcomeText")!.Text, window.FindControl<Button>("ApplyButton")!.IsVisible,
+                window.FindControl<Border>("OutcomeBanner")!.Classes.Contains("problem"));
+        });
+
+        await Assert.That(banner).Contains("nothing to eject");
+        await Assert.That(apply).IsFalse();
+        await Assert.That(problem).IsTrue();
     }
 
     [Test]
@@ -167,12 +243,12 @@ public class MainWindowTests
             window.SetTheme(theme);
             window.FindControl<CheckBox>("SemanticCheck")!.IsChecked = false;
             await window.RunAuditAsync();
-            window.FindControl<TabControl>("Tabs")!.SelectedIndex = 4;
+            window.FindControl<TabControl>("Tabs")!.SelectedItem = window.FindControl<TabItem>("BlockersTab");
             Dispatcher.UIThread.RunJobs();
 
             var frame = window.CaptureRenderedFrame()!;
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-            frame.Save(output);
+            using (var file = File.Create(output)) frame.Save(file, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
             return frame.PixelSize;
         });
 

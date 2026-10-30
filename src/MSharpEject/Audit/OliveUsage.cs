@@ -22,26 +22,25 @@ public static class OliveUsage
         var total = Math.Max(1, targets.Sum(c => c.SyntaxTrees.Count()));
         var done = 0;
 
-        foreach (var compilation in targets)
+        // One parallel pass over every tree in every project: per-project loops leave cores idle on small projects.
+        var trees = targets.SelectMany(c => c.SyntaxTrees.Select(t => (Compilation: c, Tree: t))).ToList();
+        Parallel.ForEach(trees, new ParallelOptions { CancellationToken = cancel }, item =>
         {
-            Parallel.ForEach(compilation.SyntaxTrees, new ParallelOptions { CancellationToken = cancel }, tree =>
+            var model = item.Compilation.GetSemanticModel(item.Tree);
+            var generated = isGeneratedPath(item.Tree.FilePath);
+
+            foreach (var name in item.Tree.GetRoot(cancel).DescendantNodes().OfType<SimpleNameSyntax>())
             {
-                var model = compilation.GetSemanticModel(tree);
-                var generated = isGeneratedPath(tree.FilePath);
+                // Generated code missing from disk breaks overload resolution; candidates still name the Olive member.
+                var info = model.GetSymbolInfo(name, cancel);
+                var symbol = Normalise(info.Symbol ?? info.CandidateSymbols.FirstOrDefault());
+                if (symbol == null || !IsGeeksAssembly(symbol.ContainingAssembly)) continue;
 
-                foreach (var name in tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
-                {
-                    // Generated code missing from disk breaks overload resolution; candidates still name the Olive member.
-                    var info = model.GetSymbolInfo(name);
-                    var symbol = Normalise(info.Symbol ?? info.CandidateSymbols.FirstOrDefault());
-                    if (symbol == null || !IsGeeksAssembly(symbol.ContainingAssembly)) continue;
-
-                    var tally = uses.GetOrAdd((symbol.ContainingAssembly.Name, Display(symbol), Kind(symbol)), _ => new Tally());
-                    tally.Add(tree.FilePath, generated);
-                }
-                progress?.Invoke((double)Interlocked.Increment(ref done) / total);
-            });
-        }
+                var tally = uses.GetOrAdd((symbol.ContainingAssembly.Name, Display(symbol), Kind(symbol)), _ => new Tally());
+                tally.Add(item.Tree.FilePath, generated);
+            }
+            progress?.Invoke((double)Interlocked.Increment(ref done) / total);
+        });
 
         return uses
             .Select(u => new SymbolUse(u.Key.Assembly, u.Key.Symbol, u.Key.Kind, u.Value.Count, u.Value.Generated, u.Value.FileCount))

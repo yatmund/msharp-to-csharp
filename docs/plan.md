@@ -2,6 +2,11 @@
 
 Goal: a one-shot, cross-platform tool that takes an M# repo, removes every Geeks Ltd dependency, leaves plain C#/ASP.NET Core, and keeps the repo's own tests passing. The result must build and deploy like any regular .NET app on any OS or cloud: no Geeks packages, tools or build steps, and no Windows-only runtime requirements.
 
+**Status (2026-10-30):**
+- Phase 0 (audit) and phase 1 (eject) are implemented and tested.
+- Phase 2 has its engine, plus the first 7 exact-equivalent rewrites ([de-olive.md](de-olive.md)).
+- The rest of phase 2 (more core extensions, leaf packages, MVC and front end, data layer to EF Core with migrations, package pruning) waits on audits of real repos.
+
 Research sources (cloned/decompiled 2026-10-30): `Geeksltd/MSharp.Docs`, `Olive`, `Olive.MvcTemplate`, `Olive.MvcJs`, `msharp-build`, `Msharp-Olive-Examples`, `Olive.Generators`, and the `MSharp` 6.1.0 NuGet package.
 
 ---
@@ -119,6 +124,13 @@ Each step is a separate command that removes one package group. After each one t
 4. **Olive.Entities/Data → EF Core**, mapped onto the **existing schema** with no migration of data:
    - The generated `[GEN-DAL]` holds the exact table/column/SQL mapping. The tool reads it to emit `IEntityTypeConfiguration<T>` per entity.
    - `GuidEntity` → a plain POCO with `Guid Id`. `Database.Get/GetList/Save/Delete/Of<T>()` → `DbContext` calls.
+   - **Schema management moves to EF Core migrations.** Olive has no migrations. In development, `Olive.Mvc.Testing`'s `TestDatabaseGenerator` rebuilds a temp DB from `DB/@Create.Database.sql`, the generated `DB/Tables/*.sql` (tables, then `.data.sql`, then `Customize.Database.sql`, then `.fk.sql`), keyed on a hash of the scripts, and seeds reference data from `[DEV-SCRIPTS]/ReferenceData.cs`. Production changes are made by hand or with DbDarwin. Replacement:
+     - an `InitialBaseline` migration generated from the EF model, checked against `DB/Tables/*.sql` so the schema is identical
+     - `Customize.Database.sql` added to the baseline as `migrationBuilder.Sql(...)`
+     - existing databases marked as on the baseline by inserting its row into `__EFMigrationsHistory` (script emitted by the tool), so production isn't altered
+     - `ReferenceData.Create` becomes EF seeding (`UseSeeding`/`UseAsyncSeeding`)
+     - the dev temp DB becomes `Database.Migrate()` on startup in Development
+     - `DB/` and the `Olive.Mvc.Testing` temp-DB wiring are deleted afterwards
    - Traps to preserve and cover with tests: `IsNew` semantics, the in-memory entity cache (reads after writes, stale data), `Saving/Saved/Deleting` event handlers in generated and partial code, code-level cascade delete, `[SoftDelete]` query filters, `ValidationException` from `Validate()`, transaction scopes, `Blob` file properties, and `[CacheObjects]`/`[LogEvents]`.
 
 Phase 2 is **not** a generic, run-on-any-repo tool. The codemods are driven by what the audit finds, and steps 3–4 are a real port. Expect hand-finishing per repo.

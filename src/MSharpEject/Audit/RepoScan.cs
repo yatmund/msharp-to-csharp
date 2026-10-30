@@ -112,8 +112,10 @@ public static partial class RepoScan
             rules.Add(("windows-api", WindowsApi()));
             rules.Add(("windows-path", WindowsPath()));
         }
+        if (ext == ".csproj")
+            rules.Add(("eol-framework", OutOfSupportFramework()));
         if (name.StartsWith("Dockerfile", StringComparison.OrdinalIgnoreCase))
-            rules.Add(("windows-container", WindowsContainer()));
+            rules.Add(("container-image", WindowsContainer()));
         if (ext is ".json" or ".yml" or ".yaml" or ".config" or ".ps1" or ".bat" or ".cmd" or ".xml" || name == "Jenkinsfile")
             rules.Add(("geeks-reference", GeeksReference()));
 
@@ -150,6 +152,10 @@ public static partial class RepoScan
         return SkippedDirs.Any(d => path.StartsWith(d + "/", StringComparison.OrdinalIgnoreCase) || path.Contains("/" + d + "/", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Projects that survive eject: not the M# DSL projects.</summary>
+    public static bool IsCodeProject(string relative) =>
+        !Path.GetFileName(relative).StartsWith('#') && !IsDslFile(relative);
+
     public static bool IsDslFile(string relative) =>
         relative.Replace('\\', '/').StartsWith("M#/", StringComparison.OrdinalIgnoreCase);
 
@@ -170,8 +176,12 @@ public static partial class RepoScan
     [GeneratedRegex(@"""[A-Za-z]:\\|@""[^""]*\w\\\w|""[^""\n]*\w\\\\\w[^""\n]*""")]
     private static partial Regex WindowsPath();
 
-    [GeneratedRegex(@"^\s*FROM\s+\S*(nanoserver|windowsservercore|servercore|windows)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*FROM\s+(\S*(nanoserver|windowsservercore|servercore|windows)|microsoft/|mcr\.microsoft\.com/dotnet/core/)", RegexOptions.IgnoreCase)]
     private static partial Regex WindowsContainer();
+
+    // Out of Microsoft support as of late 2026: .NET Core, .NET 5-7, .NET Framework 4.x below 4.6.2.
+    [GeneratedRegex(@"<TargetFrameworks?>[^<]*\b(netcoreapp\d|net[5-7]\.0|net4[0-5]\d?|net46[01]?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex OutOfSupportFramework();
 
     [GeneratedRegex(@"geeks\.ltd|geeksltd|msharp\.co\.uk|\bmsharp\b", RegexOptions.IgnoreCase)]
     private static partial Regex GeeksReference();

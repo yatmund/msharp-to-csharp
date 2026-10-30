@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.MSBuild;
 
 namespace MSharpEject.Audit;
 
@@ -51,6 +50,7 @@ public static class Auditor
         var blockers = files
             .Where(f => !RepoScan.IsDslFile(Rel(f)) && !RepoScan.IsGeneratedFile(Rel(f)))
             .Where(f => new FileInfo(f).Length < 2_000_000)
+            .AsParallel().AsOrdered().WithCancellation(cancel)
             .SelectMany(f => RepoScan.DeploymentBlockers(Rel(f), File.ReadAllText(f)))
             .ToList();
 
@@ -70,53 +70,12 @@ public static class Auditor
     static async Task<(List<SymbolUse>, List<string>)> CollectSymbolsAsync(
         string repo, List<string> projects, Func<string, string> rel, RunLog log, CancellationToken cancel)
     {
-        // DSL projects (#Model, #UI) get deleted, their MSharp usage doesn't matter.
-        var targets = projects.Where(p => !Path.GetFileName(p).StartsWith('#') && !RepoScan.IsDslFile(rel(p))).ToList();
-        var errors = new List<string>();
-
-        log.Progress(0.1, "Checking .NET SDK");
-        await ProcessRunner.RunAsync("dotnet", "--info", repo, log, cancel);
-
-        for (var i = 0; i < targets.Count; i++)
-        {
-            log.Progress(0.1 + 0.3 * i / targets.Count, $"Restoring {rel(targets[i])} ({i + 1}/{targets.Count})");
-            using (log.Time("restore " + rel(targets[i])))
-            {
-                var restore = await ProcessRunner.RunAsync("dotnet", $"restore \"{targets[i]}\"", repo, log, cancel);
-                if (restore.ExitCode != 0)
-                {
-                    log.Warn($"Restore failed for {rel(targets[i])} (exit {restore.ExitCode}). Olive counts for it will be low. Full output is in the log.");
-                    errors.Add($"Restore failed: {rel(targets[i])}");
-                }
-            }
-        }
-
-        using var workspace = MSBuildWorkspace.Create();
-        workspace.RegisterWorkspaceFailedHandler(e =>
-        {
-            log.Detail($"Workspace {e.Diagnostic.Kind}: {e.Diagnostic.Message}");
-            if (e.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure) errors.Add(e.Diagnostic.Message);
-        });
-
+        var targets = projects.Where(p => RepoScan.IsCodeProject(rel(p))).ToList();
+        using var loaded = await ProjectLoader.LoadAsync(repo, targets, log, 0.1, 0.8, cancel);
         var compilations = new List<Compilation>();
-        for (var i = 0; i < targets.Count; i++)
-        {
-            var path = targets[i];
-            log.Progress(0.4 + 0.4 * i / targets.Count, $"Loading {rel(path)} ({i + 1}/{targets.Count})");
-            using (log.Time("load " + rel(path)))
-            {
-                var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.FilePath == path)
-                    ?? await workspace.OpenProjectAsync(path, cancellationToken: cancel);
-                if (await project.GetCompilationAsync(cancel) is not { } compilation) continue;
-                compilations.Add(compilation);
-
-                // Expected while generated code is missing; logged so low counts can be explained.
-                var compileErrors = compilation.GetDiagnostics(cancel).Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
-                log.Detail($"{rel(path)}: {compilation.SyntaxTrees.Count()} files, {compilation.References.Count()} references, {compileErrors.Count} compile errors");
-                foreach (var d in compileErrors.Take(100)) log.Detail("  " + d);
-            }
-        }
-
+        foreach (var project in loaded.Projects)
+            if (await project.GetCompilationAsync(cancel) is { } compilation) compilations.Add(compilation);
+        var errors = loaded.Errors;
         log.Progress(0.8, "Resolving Olive symbols");
         var lastBucket = 0;
         using (log.Time("resolve symbols"))

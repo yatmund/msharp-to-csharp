@@ -6,15 +6,19 @@ public record ProcessResult(int ExitCode, string Output, string Error);
 
 public static class ProcessRunner
 {
-    public static async Task<ProcessResult> RunAsync(string exe, string args, string cwd, RunLog log, CancellationToken cancel = default)
+    public static async Task<ProcessResult> RunAsync(string exe, string args, string cwd, RunLog log, CancellationToken cancel = default,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         log.Detail($"> {exe} {args}  (in {cwd})");
-        using var process = Process.Start(new ProcessStartInfo(exe, args)
+        var start = new ProcessStartInfo(exe, args)
         {
             WorkingDirectory = cwd,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-        }) ?? throw new InvalidOperationException($"Could not start {exe}");
+        };
+        foreach (var (key, value) in environment ?? new Dictionary<string, string>())
+            start.Environment[key] = value;
+        using var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {exe}");
 
         var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         var error = process.StandardError.ReadToEndAsync(CancellationToken.None);

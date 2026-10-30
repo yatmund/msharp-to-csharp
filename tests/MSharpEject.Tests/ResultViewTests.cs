@@ -12,7 +12,7 @@ public class ResultViewTests
         Dsl: new() { ["EntityType"] = 4, ["ListModule"] = 2, ["c# expressions"] = 9 },
         Generated: [new("Domain/[GEN-Entities]", generatedFiles, generatedFiles == 0 ? null : new DateTime(2026, 1, 2))],
         NewestDslWrite: dslWrite ?? new DateTime(2026, 1, 1),
-        Blockers: [new("Build.bat", 1, "windows-script", "Build.bat"), new("Website/Dockerfile", 1, "windows-container", "FROM x-nanoserver")],
+        Blockers: [new("Build.bat", 1, "windows-script", "Build.bat"), new("Website/Dockerfile", 1, "container-image", "FROM x-nanoserver")],
         Semantic: semantic,
         Symbols: [new("Olive", "OliveExtensions.HasValue", "extension", 10, 4, 3), new("Olive.Entities", "Olive.Entities.GuidEntity", "class", 5, 5, 5)],
         LoadErrors: []);
@@ -22,8 +22,8 @@ public class ResultViewTests
     {
         var blockers = Result().Blockers;
 
-        await Assert.That(ResultView.Filter(blockers, "DOCKER").Single().Rule).IsEqualTo("windows-container");
-        await Assert.That(ResultView.Filter(blockers, "windows-").Count).IsEqualTo(2);
+        await Assert.That(ResultView.Filter(blockers, "DOCKER").Single().Rule).IsEqualTo("container-image");
+        await Assert.That(ResultView.Filter(blockers, "1").Count).IsEqualTo(2);
         await Assert.That(ResultView.Filter(blockers, "nothing matches").Count).IsEqualTo(0);
     }
 

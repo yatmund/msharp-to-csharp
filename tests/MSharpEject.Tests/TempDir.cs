@@ -14,8 +14,15 @@ sealed class TempDir : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(Path, recursive: true); }
+        try
+        {
+            // git marks its object files read-only, which blocks Directory.Delete on Windows.
+            foreach (var file in Directory.EnumerateFiles(Path, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(Path, recursive: true);
+        }
         catch (IOException) { } // MSBuild nodes can still hold obj/ files.
+        catch (UnauthorizedAccessException) { }
     }
 }
 

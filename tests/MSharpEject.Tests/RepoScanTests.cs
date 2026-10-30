@@ -133,8 +133,11 @@ public class RepoScanTests
     [Arguments("Logic/Paths.cs", "var p = \"C:\\\\Temp\\\\x.txt\";", "windows-path")]
     [Arguments("Logic/Paths.cs", "var p = \"App_Data\\\\Files\";", "windows-path")]
     [Arguments("Logic/Paths.cs", "var p = @\"App_Data\\Files\";", "windows-path")]
-    [Arguments("Website/Dockerfile", "FROM mcr.microsoft.com/dotnet/aspnet:6.0-nanoserver-1809", "windows-container")]
+    [Arguments("Website/Dockerfile", "FROM mcr.microsoft.com/dotnet/aspnet:6.0-nanoserver-1809", "container-image")]
     [Arguments("Website/appsettings.json", "\"Url\": \"https://licensing.msharp.co.uk\"", "geeks-reference")]
+    [Arguments("Website/Dockerfile", "FROM microsoft/aspnetcore:2.0 AS base", "container-image")]
+    [Arguments("Domain/Domain.csproj", "<TargetFramework>net6.0</TargetFramework>", "eol-framework")]
+    [Arguments("Domain/Domain.csproj", "<TargetFramework>netcoreapp3.1</TargetFramework>", "eol-framework")]
     [Arguments("Jenkinsfile", "git 'https://github.com/Geeksltd/MasterJenkinsfile'", "geeks-reference")]
     public async Task DeploymentBlockers_flags(string file, string line, string rule)
     {
@@ -150,6 +153,8 @@ public class RepoScanTests
     [Arguments("Logic/Ok.cs", "var s = \"line\\nbreak\";")]
     [Arguments("Logic/Ok.cs", "using SkiaSharp;")]
     [Arguments("Website/Dockerfile", "FROM mcr.microsoft.com/dotnet/aspnet:10.0")]
+    [Arguments("Domain/Domain.csproj", "<TargetFramework>net8.0</TargetFramework>")]
+    [Arguments("Domain/Domain.csproj", "<TargetFrameworks>net10.0;net472</TargetFrameworks>")]
     [Arguments("Website/appsettings.json", "\"Url\": \"https://example.com\"")]
     [Arguments("README.md", "Built with msharp")]
     public async Task DeploymentBlockers_ignores(string file, string line) =>

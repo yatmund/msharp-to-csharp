@@ -2,7 +2,7 @@
 
 Move an [M#](https://github.com/Geeksltd/MSharp.Docs) application off M# and the [Olive](https://github.com/Geeksltd/Olive) framework, so it becomes an ordinary ASP.NET Core app that builds and deploys on any OS or cloud.
 
-> **Status: early.** Only `audit` works today, from the desktop app or the command line. `eject` (remove M#) and `de-olive` (remove Olive) are planned; see [docs/plan.md](docs/plan.md).
+> **Status: pre-release.** `audit` and `eject` are complete. `de-olive` handles the first set of rewrites: Olive calls with an exact .NET equivalent. Replacing Olive's data, MVC and front-end layers is the next phase; see [Status](#status).
 >
 > Not affiliated with or endorsed by Geeks Ltd. M# and Olive are their products.
 
@@ -20,20 +20,28 @@ This causes three problems:
 
 ## How it works
 
-The work is done in three passes, each safe to review on its own:
+There are three steps. Each can be reviewed on its own, and each is a separate commit in your repo:
 
-| Command | What it does | Status |
+| Step | What it does | Reference |
 |---|---|---|
-| `audit` | Read-only report: Geeks packages, M# definitions, generated output, Windows-only build steps, deployment blockers, and every Olive symbol the code uses | ✅ |
-| `eject` | Commits M#'s final generated output as source, deletes the `M#` folder and `MSharp` package, and replaces Windows-only build steps | planned |
-| `de-olive` | Roslyn codemods that replace Olive with the .NET base library, ASP.NET Core and EF Core (mapped onto your existing database schema) | planned |
+| **Audit** | Read-only report: Geeks packages, M# definitions, generated output, Windows-only build steps, deployment blockers, and every Olive symbol the code uses | [docs/audit.md](docs/audit.md) |
+| **Eject M#** | Commits M#'s generated code as source, deletes `M#/`, removes the projects from the solution, replaces the Windows-only Sass/WebCompiler build, modernises Dockerfiles | [docs/eject.md](docs/eject.md) |
+| **Replace Olive** | Roslyn rewrites that swap Olive calls for .NET equivalents, verified to behave identically | [docs/de-olive.md](docs/de-olive.md) |
+
+Eject and Replace Olive share one safety model:
+
+1. **Preview first.** Every change is listed before anything is touched (`--dry-run` on the command line).
+2. **A clean git tree is required**, so each change can be reviewed with `git diff` and undone with `git checkout -- .`.
+3. **Verified against a baseline.** The repo is built and tested *before* the change and again *after*. Only new failures count against the tool, so tests that already failed don't block it.
 
 Source generators are deliberately not used. M# definitions have to be *run* to mean anything, and a generator would add a permanent build dependency, which defeats the point. [docs/plan.md](docs/plan.md) covers the reasoning and the research behind it.
 
 ## Requirements
 
-- The [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows, Linux or macOS. Even the self-contained downloads need it for the full audit, because Roslyn loads projects through the SDK's MSBuild.
-- For the full audit, the target repo must restore (`dotnet restore`) on your machine. That means access to the Olive packages on nuget.org and to any private feeds it uses. Older M# repos target `net6.0`, so you may also need that targeting pack.
+- The [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows, Linux or macOS. Even the self-contained downloads need it, because Roslyn loads projects through the SDK's MSBuild, and verification runs `dotnet build` and `dotnet test`.
+- The target repo must restore (`dotnet restore`) on your machine. That means access to the Olive packages on nuget.org and to any private feeds it uses. Older M# repos target `net6.0`, so you may also need that targeting pack.
+- `git`, for eject and Replace Olive.
+- Node.js, to build an ejected web project: Sass, TypeScript and front-end packages are compiled with npm tools.
 
 ## Download
 
@@ -49,6 +57,12 @@ Keep the `BuildHost-*` folders next to the executables. Roslyn starts them as se
 - **macOS:** the builds aren't signed. After unpacking, run `xattr -dr com.apple.quarantine <folder>`, then start the app from Terminal.
 - **Linux:** the desktop app needs X11 or XWayland, plus `libICE`, `libSM` and `fontconfig`. Desktop distros already have these.
 
+The command line is also published as a .NET tool:
+
+```bash
+dotnet tool install --global msharp-eject
+```
+
 ## Desktop app
 
 <picture>
@@ -57,47 +71,60 @@ Keep the `BuildHost-*` folders next to the executables. Roslyn starts them as se
 </picture>
 
 1. Choose a repository. The audit starts straight away.
-2. A progress bar shows the current step: listing files, restoring each project, loading it into Roslyn, resolving symbols.
-3. **Cancel** stops the audit at any point, including a restore stuck on an unreachable feed.
+2. A progress bar shows the current step: restoring, loading into Roslyn, resolving symbols, building, testing.
+3. **Cancel** stops any step, including a restore stuck on an unreachable feed.
 4. The tiles summarise the result, and amber means something needs attention. The tabs hold the detail.
-5. **Filter** narrows every tab at once. Double-click a build step or blocker to open that file.
-6. **Save report…** writes the same markdown the command line produces.
-7. **Open log** shows the full log of the run (see [Logs](#logs)).
+5. **Eject M#…** and **Replace Olive…** show a preview: a banner, plus a **Changes** tab listing every edit and deletion. Nothing is touched until you press **Apply changes**.
 
-The theme follows your system by default. You can switch it to Light or Dark in the top right, and the choice is remembered.
+   ![The eject preview: a banner saying four changes will be made, an Apply changes button, and the list of changes](docs/images/eject-preview.png)
+
+6. After an apply, the banner shows the verification result (build, and tests before and after), and the audit re-runs so you can see what's left.
+7. **Filter** narrows every tab at once. Double-click a change, build step or blocker to open that file.
+8. **Save report…** writes the audit as markdown. **Open log** shows the full log of the last run (see [Logs](#logs)).
+
+The options next to the buttons:
+
+- **Resolve Olive symbols:** whether the audit loads projects with Roslyn.
+- **Build and test before and after:** whether changes are verified.
+- **Allow uncommitted changes:** apply even when the git tree is dirty.
+
+The theme follows your system by default. You can switch it to Light or Dark in the top right, and the choice is remembered. The UI never blocks: all work runs in the background, and log and progress updates are batched.
 
 ## Command line
 
-From a release:
-
 ```bash
-./MSharpEject audit path/to/your-msharp-repo --out audit.md
+msharp-eject audit    path/to/repo [--out audit.md] [--no-semantic]
 ```
 
-From source:
+```bash
+msharp-eject eject    path/to/repo [--dry-run] [--allow-dirty] [--no-verify] [--generate]
+```
 
 ```bash
-dotnet run --project src/MSharpEject -- audit path/to/your-msharp-repo --out audit.md
+msharp-eject de-olive path/to/repo [--dry-run] [--allow-dirty] [--no-verify]
 ```
+
+From source, use `dotnet run --project src/MSharpEject -- <command> ...`.
 
 | Option | Meaning |
 |---|---|
-| `--out <file>` | Write the markdown report to a file instead of stdout |
+| `--out <file>` | Audit: write the markdown report to a file instead of stdout |
+| `--no-semantic` | Audit: file scans only, with no Roslyn pass. Much faster, but there's no Olive symbol table |
+| `--dry-run` | List the changes without making them |
+| `--allow-dirty` | Run even with uncommitted changes |
+| `--no-verify` | Skip building and testing before and after |
+| `--generate` | Eject: run M# once first, to produce the generated code (Windows only) |
 | `--log <file>` | Write the run log here instead of the default location |
-| `--no-semantic` | Skip restoring and loading projects with Roslyn. File scans only, so much faster, but there's no Olive symbol table |
 
-Progress goes to stderr (`[ 40%] Loading Domain/Domain.csproj (1/3)`), so stdout carries only the report. Ctrl+C cancels.
+Progress goes to stderr (`[ 40%] Loading Domain/Domain.csproj`), so stdout carries only the report. Ctrl+C cancels.
 
 | Exit code | Meaning |
 |---|---|
 | `0` | Success |
 | `1` | Bad arguments |
 | `2` | Failed (see the log) |
+| `3` | The change can't run, or verification found a problem (the output says which) |
 | `130` | Cancelled |
-
-The full audit runs `dotnet restore` on each non-M# project and loads it with Roslyn's `MSBuildWorkspace`. Apart from what `dotnet restore` creates in `obj/`, it writes nothing into your repo.
-
-[docs/audit.md](docs/audit.md) explains every section and finding in the report and what to do about it.
 
 ## Logs
 
@@ -138,7 +165,10 @@ Tests use [TUnit](https://tunit.dev) on Microsoft.Testing.Platform (configured i
 - Olive symbol resolution against an in-memory fake `Olive` assembly
 - an end-to-end audit of a small fake M# repo, which loads real projects through `MSBuildWorkspace`, including restore failures, progress and cancellation
 - the run log and the process runner (output capture, killing on cancel)
-- the desktop app, run headlessly through Avalonia: workflow, filtering, theme persistence, and a rendered screenshot in light and dark (written to `tests/MSharpEject.Tests/bin/Debug/net10.0/TestResults/`)
+- eject transforms (gitignore, sln/slnx, csproj, Dockerfile, tool manifest), each idempotent, with exact expected output
+- eject and Replace Olive end to end on a fake M# solution with git and an MSTest suite, building and testing before and after
+- each Replace Olive rewrite, plus a test that compiles and runs original and rewritten code on null, empty and normal inputs and compares the results
+- the desktop app, run headlessly through Avalonia: audit, preview, apply, filtering, theme persistence, and rendered screenshots (written to `tests/MSharpEject.Tests/bin/Debug/net10.0/TestResults/`)
 
 CI runs the suite on Ubuntu, Windows and macOS. Pushing a `v*` tag runs the release workflow: it tests, publishes the four self-contained builds and creates the GitHub release.
 
@@ -152,6 +182,12 @@ src/MSharpEject/             command line and core
   Audit/RepoScan.cs          file-level scans (csproj, package.json, DSL, blockers)
   Audit/OliveUsage.cs        Roslyn pass that counts Olive symbols
   Audit/Auditor.cs           runs the scans, reports progress, renders the markdown report
+  ProjectLoader.cs           one restore and solution load, parallel compilation
+  Verifier.cs                build and test, TRX parsing, before/after comparison
+  Git.cs                     clean-tree check
+  FileText.cs                reads and writes files keeping BOM and line endings
+  Eject/                     eject planner, pure transforms, change applier, report text
+  DeOlive/                   BCL rules, Roslyn rewriter, de-olive runner
 src/MSharpEject.Gui/         Avalonia desktop app
   MainWindow.axaml(.cs)      the window
   ResultView.cs              stat tiles, filtering, tab headers
@@ -164,6 +200,21 @@ docs/                     plan and reference docs
 Contributions are welcome. Audit output from real M# repos (with anything private stripped) is the most useful input right now: it shows which Olive APIs the codemods need to cover first.
 
 Olive is GPL v3, so don't copy its source into this repo or into code the tool generates. Write replacements from documented behaviour.
+
+## Status
+
+| Area | State |
+|---|---|
+| Audit | Complete |
+| Eject M# | Complete. Tested end to end on generated fixtures. `--generate` needs Windows and a real M# install, and isn't covered by CI. |
+| Replace Olive: .NET equivalents | 7 rewrites: `HasValue`, `IsEmpty`, `OrEmpty`, `HasAny`, `None` (2 overloads), `Lacks` |
+| Replace Olive: more core extensions | Next: picked from audits of real repos |
+| Replace Olive: data layer to EF Core with migrations | Planned ([docs/plan.md](docs/plan.md)) |
+| Replace Olive: MVC layer and Olive.MvcJs front end | Planned |
+| Replace Olive: Audit, CSV, Export, PDF, Hangfire, Email, Security | Planned |
+| Remove Olive package references once unused | Planned |
+
+Audit output from real M# repos decides what comes next. Please share yours, with anything private stripped.
 
 ## License
 

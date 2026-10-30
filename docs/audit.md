@@ -63,7 +63,8 @@ Things that would stop the app building or running on Linux or in a standard con
 |---|---|---|---|
 | `windows-api` | `*.cs` | `System.Drawing`, `Microsoft.Win32`, `[DllImport`, `Registry.`, `System.Windows.Forms`, `System.Management` | SkiaSharp or ImageSharp in place of `System.Drawing`; configuration in place of the registry; cross-platform libraries otherwise |
 | `windows-path` | `*.cs` | Drive letters (`"C:\..."`), or a backslash between path segments in a string (`"App_Data\\Files"`, `@"App_Data\Files"`) | `Path.Combine`, or forward slashes |
-| `windows-container` | `Dockerfile*` | `FROM` a `nanoserver`, `windowsservercore` or `windows` image | Use the Linux `mcr.microsoft.com/dotnet/aspnet` image |
+| `container-image` | `Dockerfile*` | `FROM` a Windows image (`nanoserver`, `windowsservercore`), or a retired one (`microsoft/aspnetcore*`, `microsoft/dotnet`, `mcr.microsoft.com/dotnet/core/*`) | Eject switches these to `mcr.microsoft.com/dotnet/aspnet|sdk:<version>` |
+| `eol-framework` | `*.csproj` | A target framework Microsoft no longer supports: `netcoreapp*`, `net5.0`–`net7.0`, .NET Framework below 4.6.2 | Retarget to a supported version (currently `net8.0` or later) and re-run the tests. The M# template targets `net6.0`. |
 | `geeks-reference` | `*.json`, `*.yml`, `*.yaml`, `*.config`, `*.xml`, `*.ps1`, `*.bat`, `*.cmd`, `Jenkinsfile` | `geeks.ltd`, `geeksltd`, `msharp.co.uk`, or the word `msharp` | Remove, or swap in your own infrastructure (CI templates, licensing endpoints, front-end packages) |
 | `iis-config` | `web.config` | Any `web.config` | Kestrel ignores it. Move any settings it holds to `appsettings.json` or middleware. |
 | `windows-script` | `*.bat`, `*.cmd` | Any batch file | Use a `dotnet` command, an npm script or a cross-platform shell script |

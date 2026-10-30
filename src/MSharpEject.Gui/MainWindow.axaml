@@ -4,14 +4,14 @@
         x:Class="MSharpEject.Gui.MainWindow"
         Title="msharp-eject"
         Background="{DynamicResource AppBackground}"
-        Width="1200" Height="820" MinWidth="760" MinHeight="520">
+        Width="1200" Height="860" MinWidth="760" MinHeight="560">
 
   <DockPanel Margin="24,20">
 
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="2">
         <TextBlock Classes="title" Text="msharp-eject" />
-        <TextBlock Classes="muted" Text="See what it takes to move an M# app to plain .NET" />
+        <TextBlock Classes="muted" Text="Move an M# app to plain .NET: audit, eject M#, replace Olive" />
       </StackPanel>
       <ComboBox Grid.Column="1" x:Name="ThemeBox" Width="130" VerticalAlignment="Center" ToolTip.Tip="Theme">
         <ComboBoxItem Content="System" />
@@ -22,18 +22,31 @@
 
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,16">
       <StackPanel Spacing="12">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
           <TextBox x:Name="RepoPath" PlaceholderText="Path to an M# repository" VerticalContentAlignment="Center" />
           <Button Grid.Column="1" x:Name="BrowseButton" Content="Browse…" />
-          <Button Grid.Column="2" x:Name="RunButton" Content="Run audit" Classes="accent" IsDefault="True" MinWidth="110" />
-          <Button Grid.Column="3" x:Name="CancelButton" Content="Cancel" IsVisible="False" MinWidth="110" />
         </Grid>
-        <CheckBox x:Name="SemanticCheck" IsChecked="True">
-          <TextBlock TextWrapping="Wrap">
-            <Run Text="Resolve Olive symbols" />
-            <Run Foreground="{DynamicResource MutedText}" Text="  restores and loads each project with Roslyn; slower, and the repo must restore on this machine" />
-          </TextBlock>
-        </CheckBox>
+
+        <Grid ColumnDefinitions="Auto,*">
+          <WrapPanel>
+            <Button x:Name="RunButton" Content="Run audit" Classes="accent" IsDefault="True" MinWidth="110" Margin="0,0,8,0"
+                    ToolTip.Tip="Read-only report. Never changes source files." />
+            <Button x:Name="EjectButton" Content="Eject M#…" MinWidth="110" Margin="0,0,8,0"
+                    ToolTip.Tip="Previews the changes first. Nothing is touched until you apply them." />
+            <Button x:Name="DeOliveButton" Content="Replace Olive…" MinWidth="110" Margin="0,0,8,0"
+                    ToolTip.Tip="Previews the rewrites first. Nothing is touched until you apply them." />
+            <Button x:Name="CancelButton" Content="Cancel" IsVisible="False" MinWidth="110" />
+          </WrapPanel>
+          <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <CheckBox x:Name="SemanticCheck" IsChecked="True" Content="Resolve Olive symbols" Margin="16,0,0,0"
+                      ToolTip.Tip="Audit: restore and load each project with Roslyn to count Olive API usage. Slower; the repo must restore on this machine." />
+            <CheckBox x:Name="VerifyCheck" IsChecked="True" Content="Build and test before and after" Margin="16,0,0,0"
+                      ToolTip.Tip="Eject and Replace Olive: build and run the repo's tests before and after applying, and flag any new failures." />
+            <CheckBox x:Name="AllowDirtyCheck" Content="Allow uncommitted changes" Margin="16,0,0,0"
+                      ToolTip.Tip="Normally changes are only applied to a clean git tree, so they can be reviewed and undone." />
+          </WrapPanel>
+        </Grid>
+
         <StackPanel x:Name="ProgressPanel" Spacing="6" IsVisible="False">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock x:Name="StepText" TextTrimming="CharacterEllipsis" />
@@ -71,16 +84,23 @@
 
     <Border Classes="card" Padding="16,8,16,16">
       <Panel>
-        <StackPanel x:Name="WelcomePanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="520">
-          <TextBlock Classes="title" Text="Audit an M# repository" HorizontalAlignment="Center" />
+        <StackPanel x:Name="WelcomePanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="560">
+          <TextBlock Classes="title" Text="Start with an audit" HorizontalAlignment="Center" />
           <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center"
-                     Text="Lists every Geeks Ltd dependency, the M# definitions and generated code, Windows-only build steps, deployment blockers, and each Olive API the code uses. It never changes source files." />
+                     Text="The audit lists every Geeks Ltd dependency, the M# definitions and generated code, Windows-only build steps, deployment blockers, and each Olive API the code uses. It never changes source files. Eject and Replace Olive always show their changes before applying them." />
           <Button x:Name="WelcomeBrowseButton" Content="Choose a repository…" Classes="accent" HorizontalAlignment="Center" Margin="0,6,0,0" />
         </StackPanel>
 
         <DockPanel x:Name="ResultsPanel" IsVisible="False">
+          <Border DockPanel.Dock="Top" x:Name="OutcomeBanner" Classes="banner" IsVisible="False">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock x:Name="OutcomeText" TextWrapping="Wrap" VerticalAlignment="Center" />
+              <Button Grid.Column="1" x:Name="ApplyButton" Content="Apply changes" Classes="accent" IsVisible="False" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
           <TextBox DockPanel.Dock="Top" x:Name="FilterBox" PlaceholderText="Filter results" Margin="0,8,0,4" />
           <TabControl x:Name="Tabs">
+            <TabItem x:Name="ChangesTab" Header="Changes" IsVisible="False"><DataGrid x:Name="ChangesGrid" ToolTip.Tip="Double-click to open the file" /></TabItem>
             <TabItem x:Name="PackagesTab" Header="Packages"><DataGrid x:Name="PackagesGrid" /></TabItem>
             <TabItem x:Name="DslTab" Header="M# definitions"><DataGrid x:Name="DslGrid" /></TabItem>
             <TabItem x:Name="GeneratedTab" Header="Generated output"><DataGrid x:Name="GeneratedGrid" /></TabItem>

@@ -56,7 +56,7 @@ public class AuditorTests
         await Assert.That(result.BuildSteps.Single().Text).IsEqualTo("dotnet msharp.dsl.dll /build /model");
         await Assert.That(result.Dsl["EntityType"]).IsEqualTo(1);
         await Assert.That(result.Generated.Single(g => g.Path == "Domain/[GEN-Entities]").Files).IsEqualTo(1);
-        await Assert.That(result.Blockers.Select(b => b.Rule)).IsEquivalentTo(["windows-path", "windows-container", "geeks-reference", "windows-script"]);
+        await Assert.That(result.Blockers.Select(b => b.Rule)).IsEquivalentTo(["windows-path", "container-image", "geeks-reference", "windows-script"]);
         await Assert.That(result.Symbols.Count).IsEqualTo(0);
     }
 
@@ -79,7 +79,7 @@ public class AuditorTests
         await Assert.That(result.LoadErrors.Count).IsEqualTo(0);
 
         await Assert.That(steps).Contains("Restoring Domain/Domain.csproj (1/2)");
-        await Assert.That(steps).Contains("Loading Olive/Olive.csproj (2/2)");
+        await Assert.That(steps).Contains("Compiling 2 projects");
         var text = RunLogTests.ReadShared(log.FilePath);
         await Assert.That(text).Contains("> dotnet --info");
         await Assert.That(text).Contains("> dotnet restore");
@@ -143,7 +143,7 @@ public class AuditorTests
         var md = Auditor.ToMarkdown(result);
 
         foreach (var heading in new[] { "## Geeks packages and tools", "## M# definitions", "## Generated output on disk",
-                     "## Windows-only or Geeks build steps", "## Deployment blockers", "### windows-container (1)", "## Olive symbol usage" })
+                     "## Windows-only or Geeks build steps", "## Deployment blockers", "### container-image (1)", "## Olive symbol usage" })
             await Assert.That(md).Contains(heading);
         await Assert.That(md).Contains("| M#/Model/#Model.csproj | MSharp | 6.1.0 |");
         await Assert.That(md).Contains("Skipped (`--no-semantic`).");

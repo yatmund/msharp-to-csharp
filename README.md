@@ -170,7 +170,13 @@ Tests use [TUnit](https://tunit.dev) on Microsoft.Testing.Platform (configured i
 - each Replace Olive rewrite, plus a test that compiles and runs original and rewritten code on null, empty and normal inputs and compares the results
 - the desktop app, run headlessly through Avalonia: audit, preview, apply, filtering, theme persistence, and rendered screenshots (written to `tests/MSharpEject.Tests/bin/Debug/net10.0/TestResults/`)
 
-CI runs the suite on Ubuntu, Windows and macOS. Pushing a `v*` tag runs the release workflow: it tests, publishes the four self-contained builds and creates the GitHub release.
+CI runs the suite on Ubuntu, Windows and macOS.
+
+The release workflow tests, publishes the four self-contained builds and the `dotnet tool` package, and attaches them to a GitHub release. It pushes the tool to NuGet when a `NUGET_API_KEY` secret is set. There are three ways to start it:
+
+- **Actions → Release → Run workflow:** enter a version such as `0.1.0`, and optionally tick *draft*. The workflow creates the tag and the release.
+- **Releases → Draft a new release** with a new `v*` tag: the workflow attaches the builds to the release you made.
+- **Push a tag:** `git tag v0.1.0`, then `git push origin v0.1.0`.
 
 Layout:
 

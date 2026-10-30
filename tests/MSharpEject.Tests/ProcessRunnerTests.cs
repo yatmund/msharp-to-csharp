@@ -27,6 +27,31 @@ public class ProcessRunnerTests
     }
 
     [Test]
+    public async Task Children_run_hidden_without_node_reuse_or_prompts()
+    {
+        var start = ProcessRunner.CreateStartInfo("dotnet", "build", ".", new Dictionary<string, string> { ["MSHARP_BUILD"] = "FULL" });
+
+        await Assert.That(start.CreateNoWindow).IsTrue();
+        await Assert.That(start.UseShellExecute).IsFalse();
+        await Assert.That(start.RedirectStandardInput && start.RedirectStandardOutput && start.RedirectStandardError).IsTrue();
+        await Assert.That(start.Environment["MSBUILDDISABLENODEREUSE"]).IsEqualTo("1");
+        await Assert.That(start.Environment["GIT_TERMINAL_PROMPT"]).IsEqualTo("0");
+        await Assert.That(start.Environment["MSHARP_BUILD"]).IsEqualTo("FULL");
+    }
+
+    [Test]
+    [Timeout(30_000)]
+    public async Task A_child_waiting_on_input_gets_end_of_file_instead_of_hanging(CancellationToken _)
+    {
+        using var log = TestLog.Create();
+
+        // sort reads stdin until EOF on Windows, Linux and macOS.
+        var result = await ProcessRunner.RunAsync("sort", "", Environment.CurrentDirectory, log);
+
+        await Assert.That(result.ExitCode).IsEqualTo(0);
+    }
+
+    [Test]
     [Timeout(30_000)]
     public async Task Cancel_kills_the_process(CancellationToken _)
     {

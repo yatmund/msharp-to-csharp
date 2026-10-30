@@ -42,6 +42,8 @@ public static class ProjectLoader
             }
         }
 
+        // Roslyn's build host inherits this; ProcessRunner sets it for everything else.
+        Environment.SetEnvironmentVariable("MSBUILDDISABLENODEREUSE", "1");
         var workspace = MSBuildWorkspace.Create();
         workspace.RegisterWorkspaceFailedHandler(e =>
         {

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version without the v, e.g. 0.1.0"
+        description: "Version, e.g. 0.1.0 (a leading v is fine)"
         required: true
       draft:
         description: "Create as a draft (publish it yourself from the Releases page)"
@@ -21,43 +21,49 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - name: Check version
+      # Manual runs take the typed version, tag pushes the tag name; either may or may not start with v.
+      - name: Work out version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
-            echo "::error::'$TAG' isn't a version like v1.2.3 or v1.2.3-beta.1"
+          version="$(echo "${INPUT_VERSION:-$GITHUB_REF_NAME}" | tr -d '[:space:]')"
+          version="${version#[vV]}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$version' isn't a version like 1.2.3 or 1.2.3-beta.1"
             exit 1
           fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "TAG=v$version" >> "$GITHUB_ENV"
+          echo "Releasing v$version"
 
       - run: dotnet test
 
       - name: Publish self-contained builds
         run: |
-          version="${TAG#v}"
           mkdir -p dist
           for rid in win-x64 linux-x64 osx-x64 osx-arm64; do
-            out="publish/msharp-eject-$version-$rid"
+            out="publish/msharp-eject-$VERSION-$rid"
             for project in src/MSharpEject src/MSharpEject.Gui; do
               dotnet publish "$project" -c Release -r "$rid" --self-contained \
                 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-                -p:DebugType=none -p:Version="$version" -o "$out"
+                -p:DebugType=none -p:Version="$VERSION" -o "$out"
             done
             find "$out" -name '*.pdb' -delete
             if [[ "$rid" == win-* ]]; then
-              (cd publish && zip -qr "../dist/msharp-eject-$version-$rid.zip" "msharp-eject-$version-$rid")
+              (cd publish && zip -qr "../dist/msharp-eject-$VERSION-$rid.zip" "msharp-eject-$VERSION-$rid")
             else
-              tar -czf "dist/msharp-eject-$version-$rid.tar.gz" -C publish "msharp-eject-$version-$rid"
+              tar -czf "dist/msharp-eject-$VERSION-$rid.tar.gz" -C publish "msharp-eject-$VERSION-$rid"
             fi
           done
 
       - name: Pack dotnet tool
-        run: dotnet pack src/MSharpEject -c Release -p:Version="${TAG#v}" -o dist
+        run: dotnet pack src/MSharpEject -c Release -p:Version="$VERSION" -o dist
 
       - name: Push dotnet tool to NuGet
         if: ${{ env.NUGET_API_KEY != '' }}

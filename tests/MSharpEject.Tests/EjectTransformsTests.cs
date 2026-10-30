@@ -90,7 +90,8 @@ public class EjectTransformsTests
         await Assert.That(result).Contains($"npx --yes yarn@{EjectTransforms.YarnVersion} install");
         await Assert.That(result).Contains($"npx --yes sass@{EjectTransforms.SassVersion} --no-source-map --quiet wwwroot/styles/a.scss:wwwroot/styles/a.css");
         await Assert.That(result).Contains("Outputs=\"wwwroot/styles/a.css\"");
-        await Assert.That(result).Contains($"<PackageReference Include=\"Microsoft.TypeScript.MSBuild\" Version=\"{EjectTransforms.TypeScriptMSBuildVersion}\" />");
+        await Assert.That(result).Contains($"npx --yes -p typescript@{EjectTransforms.TypeScriptVersion} tsc -p tsconfig.json");
+        await Assert.That(result).DoesNotContain("Microsoft.TypeScript.MSBuild");
         await Assert.That(result).DoesNotContain("\r\r");
         await Assert.That(result.Replace("\r\n", "")).DoesNotContain("\n");
         await Assert.That(System.Xml.Linq.XDocument.Parse(result).Root!.Name.LocalName).IsEqualTo("Project");

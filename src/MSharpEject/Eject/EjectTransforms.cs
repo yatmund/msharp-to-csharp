@@ -15,7 +15,7 @@ public static partial class EjectTransforms
 {
     public const string SassVersion = "1.107.0";
     public const string YarnVersion = "1.22.22";
-    public const string TypeScriptMSBuildVersion = "5.9.3";
+    public const string TypeScriptVersion = "5.9.3";
 
     static readonly string[] IgnoredGeneratedPaths =
     [
@@ -157,13 +157,11 @@ public static partial class EjectTransforms
                     inputs: "@(Content->WithMetadataValue('Extension','.scss'));@(None->WithMetadataValue('Extension','.scss'));wwwroot/**/*.scss", outputs: outputs));
                 changed = true;
             }
-            if (frontEnd.HasTsConfig && !project.Descendants().Any(e => e.Name.LocalName == "PackageReference" && (string?)e.Attribute("Include") == "Microsoft.TypeScript.MSBuild"))
+            // Microsoft.TypeScript.MSBuild adds predicted outputs as static web assets; build fails when one is missing.
+            if (frontEnd.HasTsConfig && !HasTarget(project, "CompileTypeScript"))
             {
-                var group = new XElement("ItemGroup",
-                    new XText("\n" + indent + indent),
-                    new XElement("PackageReference", new XAttribute("Include", "Microsoft.TypeScript.MSBuild"), new XAttribute("Version", TypeScriptMSBuildVersion)),
-                    new XText("\n" + indent));
-                AddBeforeEnd(project, indent, group);
+                AddBeforeEnd(project, indent, new XComment(" Compiles TypeScript on build; needs Node.js. "));
+                AddBeforeEnd(project, indent, Target("CompileTypeScript", "'$(SkipTypeScript)' != 'true'", $"npx --yes -p typescript@{TypeScriptVersion} tsc -p tsconfig.json", indent));
                 changed = true;
             }
         }

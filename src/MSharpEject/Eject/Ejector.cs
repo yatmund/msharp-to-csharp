@@ -127,7 +127,7 @@ public static class Ejector
         if (xml.Contains("WebCompiler.")) parts.Add("replace Windows-only WebCompiler");
         if (frontEnd?.HasPackageJson == true) parts.Add("install front-end packages on build");
         if (frontEnd?.Sass.Count > 0) parts.Add("compile Sass with dart-sass");
-        if (frontEnd?.HasTsConfig == true) parts.Add("compile TypeScript with Microsoft.TypeScript.MSBuild");
+        if (frontEnd?.HasTsConfig == true) parts.Add("compile TypeScript with tsc");
         var text = string.Join(", ", parts);
         return text.Length == 0 ? "Tidy project file" : char.ToUpperInvariant(text[0]) + text[1..];
     }

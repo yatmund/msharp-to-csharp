@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MSharpEject/MSharpEject.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MSharpEject.Tests/MSharpEject.Tests.csproj" />
+  </Folder>
+</Solution>

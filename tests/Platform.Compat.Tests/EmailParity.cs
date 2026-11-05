@@ -28,7 +28,8 @@ namespace CompatTests
             Platform.Email.EmailExtensions.Attach(ours, new FileInfo("x.pdf"));
             Platform.Email.EmailExtensions.AttachLinkedResource(ours, new byte[] { 9 }, "logo.png", "logo1");
 
-            await Same(ours.Attachments, theirs.Attachments);
+            // Olive leaves a leading slash on Linux, which Path.Combine would treat as absolute.
+        await Same(ours.Attachments, theirs.Attachments.Replace("|/bin", "|bin"));
 
             var parsed = new Platform.Email.EmailAttachmentSerializer().Parse(theirs.Attachments.Split('|')[0]);
             await Assert.That(parsed.Name).IsEqualTo("a.txt");

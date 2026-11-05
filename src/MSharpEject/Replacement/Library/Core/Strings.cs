@@ -385,7 +385,7 @@ namespace Platform
         }
 
         public static string JavascriptEncode(this string @this) =>
-            @this.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\"", "\\x22").Replace("\r\n", "\\n").Replace("\r", "\\n").Replace("\n", "\\n");
+            @this.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\"", "\\x22").Replace(Environment.NewLine, "\\n");
 
         public static string EscapeCsvValue(this string @this)
         {

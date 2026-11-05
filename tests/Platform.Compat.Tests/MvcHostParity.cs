@@ -22,7 +22,6 @@ namespace CompatTests
         {
             ["ConnectionStrings:Default"] = "Server=.;Database=X;Integrated Security=true",
             ["Database:Cache:Enabled"] = "false",
-            ["App:Culture"] = "en-GB",
             ["Database:Providers:0:AssemblyName"] = typeof(MvcHostParity).Assembly.GetName().Name,
         };
 

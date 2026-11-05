@@ -42,8 +42,7 @@ namespace Platform
 
         public static DateTime GetBeginningOfWeek(this DateTime @this)
         {
-            var start = CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;
-            var diff = (7 + (@this.DayOfWeek - start)) % 7;
+            var diff = (7 + (@this.DayOfWeek - DayOfWeek.Monday)) % 7;
             return @this.Date.AddDays(-diff);
         }
 
@@ -104,7 +103,7 @@ namespace Platform
             else if (@this.Date == today.AddDays(-1)) day = "Yesterday";
             else if (@this.Date >= today.AddDays(-5)) day = @this.DayOfWeek.ToString();
             else day = @this.ToString("MMMM dd, yyyy");
-            return day + " @ " + @this.ToString("h:mm tt").ToLower();
+            return day + " @ " + @this.ToShortTimeString().ToLower();
         }
 
         public static string ToTimeDifferenceString(this DateTime @this) => @this.ToTimeDifferenceString(2, true);

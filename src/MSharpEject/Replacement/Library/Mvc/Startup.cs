@@ -164,7 +164,7 @@ namespace Platform.Mvc
             else app.UseExceptionHandler("/error");
         }
 
-        protected virtual CultureInfo GetRequestCulture() => new CultureInfo(Configuration["App:Culture"] ?? "en-GB");
+        protected virtual CultureInfo GetRequestCulture() => CultureInfo.CurrentCulture;
 
         protected virtual void ConfigureRoutes(IRouteBuilder routes) { }
     }

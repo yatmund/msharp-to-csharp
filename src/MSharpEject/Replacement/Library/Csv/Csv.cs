@@ -62,12 +62,12 @@ namespace Platform.Csv
 
         // Unescaped, as in Olive: a comma in a value makes an extra column.
         public static string ToCsv(this Dictionary<string, string> @this) =>
-            string.Concat(@this.Select(pair => pair.Key + "," + pair.Value + "\r\n"));
+            string.Concat(@this.Select(pair => pair.Key + "," + pair.Value + Environment.NewLine));
 
         public static string ToCsv<T>(this IEnumerable<T> @this) where T : class
         {
             using (var text = new StringWriter())
-            using (var writer = new CsvHelper.CsvWriter(text, new CsvConfiguration(CultureInfo.InvariantCulture) { ShouldQuote = a => a.FieldType == typeof(string) || string.IsNullOrEmpty(a.Field) }))
+            using (var writer = new CsvHelper.CsvWriter(text, new CsvConfiguration(CultureInfo.InvariantCulture) { NewLine = Environment.NewLine, ShouldQuote = a => a.FieldType == typeof(string) || string.IsNullOrEmpty(a.Field) }))
             {
                 writer.WriteRecords(@this);
                 writer.Flush();
@@ -78,7 +78,7 @@ namespace Platform.Csv
         public static string ToCsv(this DataTable @this)
         {
             using (var text = new StringWriter())
-            using (var writer = new CsvHelper.CsvWriter(text, CultureInfo.InvariantCulture))
+            using (var writer = new CsvHelper.CsvWriter(text, new CsvConfiguration(CultureInfo.InvariantCulture) { NewLine = Environment.NewLine }))
             {
                 foreach (DataColumn column in @this.Columns) writer.WriteField(column.ColumnName);
                 writer.NextRecord();

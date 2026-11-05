@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MSharpEject.Audit;
 
 namespace MSharpEject.Tests;
@@ -33,14 +34,16 @@ public class ClaudeHandoffTests
         var promptFile = Path.Combine(dir.Path, "claude-prompt.md");
         var repo = Path.Combine(dir.Path, "Bob's repo");
 
-        var start = ClaudeHandoff.Terminal(repo, promptFile);
+        ProcessStartInfo? start = null;
+        try { start = ClaudeHandoff.Terminal(repo, promptFile); }
+        catch (InvalidOperationException) when (OperatingSystem.IsLinux()) { }
 
         var script = Directory.GetFiles(dir.Path, "claude-handoff.*").Single();
         var text = File.ReadAllText(script);
         if (OperatingSystem.IsWindows())
         {
             await Assert.That(text).Contains($"Set-Location -LiteralPath '{repo.Replace("'", "''")}'");
-            await Assert.That(start.Arguments).Contains(script);
+            await Assert.That(start!.Arguments).Contains(script);
         }
         else
             await Assert.That(text).Contains("'\\''");

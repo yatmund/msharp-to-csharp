@@ -38,7 +38,12 @@ public static partial class EjectTransforms
         return pattern.Length > 0 && !pattern.StartsWith('#') && IgnoredGeneratedPaths.Any(pattern.StartsWith);
     }
 
-    public static string? Sln(string text)
+    public static string? Sln(string text) => SlnWithout(text, IsDslPath);
+
+    public static string? RemoveOliveFromSln(string text) =>
+        SlnWithout(text, p => Replacement.ReplacementLibrary.IsOliveAssembly(Path.GetFileNameWithoutExtension(p.Replace('\\', '/'))));
+
+    static string? SlnWithout(string text, Func<string, bool> drop)
     {
         var newLine = FileText.NewLineOf(text);
         var lines = text.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
@@ -48,7 +53,7 @@ public static partial class EjectTransforms
         for (var i = 0; i < lines.Count; i++)
         {
             var project = SlnProject().Match(lines[i]);
-            if (project.Success && IsDslPath(project.Groups["path"].Value))
+            if (project.Success && drop(project.Groups["path"].Value))
             {
                 guids.Add(project.Groups["guid"].Value);
                 while (i < lines.Count && lines[i].Trim() != "EndProject") i++;
@@ -175,6 +180,80 @@ public static partial class EjectTransforms
         return changed ? Serialize(doc, xml) : null;
     }
 
+    /// <param name="library">Path of the replacement library's csproj relative to this project; null leaves references to it alone.</param>
+    /// <param name="dropOlive">Remove Olive package references and project references to Olive projects.</param>
+    public static string? OliveReferences(string xml, string? library, bool dropOlive)
+    {
+        var doc = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+        var project = doc.Root!;
+        var changed = false;
+
+        if (dropOlive)
+            foreach (var reference in project.Descendants().Where(IsOliveReference).ToList())
+            {
+                RemoveWithIndent(reference);
+                changed = true;
+            }
+
+        var hasLibrary = project.Descendants().Any(e => e.Name.LocalName == "ProjectReference"
+            && Path.GetFileName(((string?)e.Attribute("Include") ?? "").Replace('\\', '/')) == Path.GetFileName(library ?? "\0"));
+        if (library != null && !hasLibrary)
+        {
+            var indent = ChildIndent(project);
+            AddBeforeEnd(project, indent, new XElement("ItemGroup",
+                new XText("\n" + indent + indent),
+                new XElement("ProjectReference", new XAttribute("Include", library.Replace('/', '\\'))),
+                new XText("\n" + indent)));
+            changed = true;
+        }
+
+        foreach (var empty in project.Elements().Where(e => e.Name.LocalName == "ItemGroup" && !e.Elements().Any()).ToList())
+            RemoveWithIndent(empty);
+        return changed ? Serialize(doc, xml) : null;
+    }
+
+    static bool IsOliveReference(XElement e)
+    {
+        var include = (string?)e.Attribute("Include") ?? (string?)e.Attribute("Update") ?? "";
+        return e.Name.LocalName switch
+        {
+            "PackageReference" => Replacement.ReplacementLibrary.IsOliveAssembly(include),
+            "ProjectReference" => Replacement.ReplacementLibrary.IsOliveAssembly(Path.GetFileNameWithoutExtension(include.Replace('\\', '/'))),
+            _ => false,
+        };
+    }
+
+    public static string? AddToSlnx(string xml, string projectPath)
+    {
+        if (xml.Contains($"\"{projectPath}\"", StringComparison.OrdinalIgnoreCase)) return null;
+        var doc = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+        AddBeforeEnd(doc.Root!, ChildIndent(doc.Root!), new XElement("Project", new XAttribute("Path", projectPath)));
+        return Serialize(doc, xml);
+    }
+
+    public static string? AddToSln(string text, string projectPath, Guid id)
+    {
+        var path = projectPath.Replace('/', '\\');
+        if (text.Contains(path, StringComparison.OrdinalIgnoreCase)) return null;
+        var newLine = FileText.NewLineOf(text);
+        var global = text.IndexOf(newLine + "Global", StringComparison.Ordinal);
+        if (global < 0) return null;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var block = $"{newLine}Project(\"{{9A19103F-16F7-4668-BE54-9A1E7A4F7556}}\") = \"{name}\", \"{path}\", \"{{{id.ToString().ToUpperInvariant()}}}\"{newLine}EndProject";
+        return text.Insert(global, block);
+    }
+
+    /// <summary>Drops solution entries for vendored Olive projects.</summary>
+    public static string? RemoveOliveFromSlnx(string xml)
+    {
+        var doc = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+        var olive = doc.Descendants().Where(e => e.Name.LocalName == "Project"
+            && Replacement.ReplacementLibrary.IsOliveAssembly(Path.GetFileNameWithoutExtension(((string?)e.Attribute("Path") ?? "").Replace('\\', '/')))).ToList();
+        if (olive.Count == 0) return null;
+        olive.ForEach(RemoveWithIndent);
+        return Serialize(doc, xml);
+    }
+
     static bool IsMSharp(XElement reference)
     {
         var id = (string?)reference.Attribute("Include") ?? (string?)reference.Attribute("Update") ?? "";
@@ -196,10 +275,10 @@ public static partial class EjectTransforms
         return target;
     }
 
-    static string ChildIndent(XElement parent) =>
+    internal static string ChildIndent(XElement parent) =>
         parent.Nodes().OfType<XText>().Select(t => t.Value).FirstOrDefault(v => v.Contains('\n'))?.Split('\n').Last() is { Length: > 0 } indent ? indent : "  ";
 
-    static void AddBeforeEnd(XElement parent, string indent, XNode node)
+    internal static void AddBeforeEnd(XElement parent, string indent, XNode node)
     {
         // Keep the closing tag on its own line: insert before the trailing whitespace if there is one.
         if (parent.LastNode is XText trailing && string.IsNullOrWhiteSpace(trailing.Value))
@@ -208,13 +287,13 @@ public static partial class EjectTransforms
             parent.Add(new XText("\n" + indent), node, new XText("\n"));
     }
 
-    static void RemoveWithIndent(XElement element)
+    internal static void RemoveWithIndent(XElement element)
     {
         if (element.PreviousNode is XText text && string.IsNullOrWhiteSpace(text.Value)) text.Remove();
         element.Remove();
     }
 
-    static string Serialize(XDocument doc, string original)
+    internal static string Serialize(XDocument doc, string original)
     {
         // Everything before the root element (declaration, comments, blank lines) is kept byte for byte.
         var rootName = "<" + doc.Root!.Name.LocalName;

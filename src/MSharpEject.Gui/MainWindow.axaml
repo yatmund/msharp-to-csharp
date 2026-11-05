@@ -35,6 +35,8 @@
                     ToolTip.Tip="Previews the changes first. Nothing is touched until you apply them." />
             <Button x:Name="DeOliveButton" Content="Replace Olive…" MinWidth="110" Margin="0,0,8,0"
                     ToolTip.Tip="Previews the rewrites first. Nothing is touched until you apply them." />
+            <Button x:Name="ClaudeButton" Content="Finish with Claude Code…" MinWidth="110" Margin="0,0,8,0" IsEnabled="False"
+                    ToolTip.Tip="Opens Claude Code in a terminal with the last audit as its brief: remove every trace of M# and Olive, including tests, keeping the build and tests green." />
             <Button x:Name="CancelButton" Content="Cancel" IsVisible="False" MinWidth="110" />
           </WrapPanel>
           <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -101,6 +103,12 @@
           <TextBox DockPanel.Dock="Top" x:Name="FilterBox" PlaceholderText="Filter results" Margin="0,8,0,4" />
           <TabControl x:Name="Tabs">
             <TabItem x:Name="ChangesTab" Header="Changes" IsVisible="False"><DataGrid x:Name="ChangesGrid" ToolTip.Tip="Double-click to open the file" /></TabItem>
+            <TabItem x:Name="LeftTab" Header="What's left">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" x:Name="VerdictText" TextWrapping="Wrap" Margin="0,6,0,8" />
+                <DataGrid x:Name="LeftGrid" />
+              </DockPanel>
+            </TabItem>
             <TabItem x:Name="PackagesTab" Header="Packages"><DataGrid x:Name="PackagesGrid" /></TabItem>
             <TabItem x:Name="DslTab" Header="M# definitions"><DataGrid x:Name="DslGrid" /></TabItem>
             <TabItem x:Name="GeneratedTab" Header="Generated output"><DataGrid x:Name="GeneratedGrid" /></TabItem>

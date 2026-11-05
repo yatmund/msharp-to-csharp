@@ -5,7 +5,8 @@ Goal: a one-shot, cross-platform tool that takes an M# repo, removes every Geeks
 **Status (2026-10-30):**
 - Phase 0 (audit) and phase 1 (eject) are implemented and tested.
 - Phase 2 has its engine, plus the first 7 exact-equivalent rewrites ([de-olive.md](de-olive.md)).
-- The rest of phase 2 (more core extensions, leaf packages, MVC and front end, data layer to EF Core with migrations, package pruning) waits on audits of real repos.
+- The rest of phase 2 (more core extensions, PDF, Drawing, background tasks, data layer to EF Core with migrations) waits on audits of real repos.
+- **Decided 2026-10-30: the tool does almost all of phase 2 itself, through an in-repo replacement library (`Platform`).** The library is written fresh under MIT and matches Olive's signatures, so call sites compile unchanged. Files that only call Olive helpers move as soon as every helper they use exists. Types move all at once, with the package references, once everything the repo uses exists. An in-memory compile decides what moves. Pure helpers are checked against the real Olive by `tests/Platform.Compat.Tests`. **Finish with Claude Code…** handles whatever the library doesn't cover yet.
 
 Research sources (cloned/decompiled 2026-10-30): `Geeksltd/MSharp.Docs`, `Olive`, `Olive.MvcTemplate`, `Olive.MvcJs`, `msharp-build`, `Msharp-Olive-Examples`, `Olive.Generators`, and the `MSharp` 6.1.0 NuGet package.
 

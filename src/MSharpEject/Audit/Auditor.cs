@@ -95,6 +95,12 @@ public static class Auditor
         var md = new StringBuilder();
         md.AppendLine($"# M# / Olive audit: {Path.GetFileName(r.Repo)}").AppendLine();
 
+        md.AppendLine("## What's left").AppendLine();
+        foreach (var verdict in Remaining.Verdicts(r)) md.AppendLine($"- {verdict}");
+        md.AppendLine();
+        Table(md, ["Kind", "Item", "Found", "This tool", "Manual work"],
+            Remaining.Items(r).Select(i => new[] { i.Kind, i.Item, i.Found, i.Tool, i.ManualWork }));
+
         md.AppendLine("## Geeks packages and tools").AppendLine();
         Table(md, ["Project", "Package", "Version"], r.Packages.OrderBy(p => p.Id).Select(p => new[] { p.Project, p.Id, p.Version ?? "" }));
 
@@ -116,6 +122,7 @@ public static class Auditor
         foreach (var group in r.Blockers.GroupBy(b => b.Rule).OrderBy(g => g.Key))
         {
             md.AppendLine($"### {group.Key} ({group.Count()})").AppendLine();
+            if (Remaining.RuleNotes.TryGetValue(group.Key, out var note)) md.AppendLine(note).AppendLine();
             Findings(md, group);
         }
 
@@ -125,9 +132,9 @@ public static class Auditor
             md.AppendLine($"{r.LoadErrors.Count} project load errors, counts may be low:").AppendLine()
               .AppendJoin("\n", r.LoadErrors.Distinct().Take(20).Select(e => $"- {e}")).AppendLine().AppendLine();
 
-        Table(md, ["Assembly", "Distinct symbols", "Uses", "In generated code"],
+        Table(md, ["Assembly", "Area", "Distinct symbols", "Uses", "In generated code"],
             r.Symbols.GroupBy(s => s.Assembly).OrderByDescending(g => g.Sum(s => s.Count))
-                .Select(g => new[] { g.Key, g.Count().ToString(), g.Sum(s => s.Count).ToString(), g.Sum(s => s.GeneratedCount).ToString() }));
+                .Select(g => new[] { g.Key, Remaining.AreaName(g.Key), g.Count().ToString(), g.Sum(s => s.Count).ToString(), g.Sum(s => s.GeneratedCount).ToString() }));
         Table(md, ["Symbol", "Kind", "Assembly", "Uses", "Generated", "Files"],
             r.Symbols.Select(s => new[] { $"`{s.Symbol}`", s.Kind, s.Assembly, s.Count.ToString(), s.GeneratedCount.ToString(), s.Files.ToString() }));
 

@@ -142,7 +142,7 @@ public class AuditorTests
 
         var md = Auditor.ToMarkdown(result);
 
-        foreach (var heading in new[] { "## Geeks packages and tools", "## M# definitions", "## Generated output on disk",
+        foreach (var heading in new[] { "## What's left", "- Linux-ready: no.", "## Geeks packages and tools", "## M# definitions", "## Generated output on disk",
                      "## Windows-only or Geeks build steps", "## Deployment blockers", "### container-image (1)", "## Olive symbol usage" })
             await Assert.That(md).Contains(heading);
         await Assert.That(md).Contains("| M#/Model/#Model.csproj | MSharp | 6.1.0 |");

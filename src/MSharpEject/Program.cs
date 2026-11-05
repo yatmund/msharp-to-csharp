@@ -71,6 +71,9 @@ try
         : await DeOliver.RunAsync(repo, options, log, cancel.Token);
 
     Console.WriteLine(RunReport.ToText(command, outcome, options));
+    // File scans only: a second Roslyn load would double the run time.
+    if (outcome.Applied || (outcome.Changes.Count == 0 && outcome.Verdict == null))
+        Console.WriteLine(Remaining.ToText(await Auditor.RunAsync(repo, semantic: false, log, cancel.Token)));
     return outcome.Verdict == null ? 0 : 3;
 }
 catch (OperationCanceledException)

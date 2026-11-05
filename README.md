@@ -78,9 +78,10 @@ dotnet tool install --global msharp-eject
 
    ![The eject preview: a banner saying four changes will be made, an Apply changes button, and the list of changes](docs/images/eject-preview.png)
 
-6. After an apply, the banner shows the verification result (build, and tests before and after), and the audit re-runs so you can see what's left.
-7. **Filter** narrows every tab at once. Double-click a change, build step or blocker to open that file.
-8. **Save report…** writes the audit as markdown. **Open log** shows the full log of the last run (see [Logs](#logs)).
+6. After an apply, the banner shows the verification result (build, and tests before and after), and the audit re-runs. The **What's left** tab says whether the repo is Olive-free and Linux-ready, and lists each remaining Olive area and platform blocker with the manual work it needs.
+7. **Finish with Claude Code…** opens [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) in a new terminal, in the repo, briefed with the last audit. The goal it's given: no M# or Olive anywhere, tests and docs included, with the build and tests green, plain .NET in place of Olive, and the audit re-run until nothing is left. You watch and approve its changes there. If Claude Code isn't installed, the brief is copied to the clipboard.
+8. **Filter** narrows every tab at once. Double-click a change, build step or blocker to open that file.
+9. **Save report…** writes the audit as markdown. **Open log** shows the full log of the last run (see [Logs](#logs)).
 
 The options next to the buttons:
 
@@ -117,6 +118,8 @@ From source, use `dotnet run --project src/MSharpEject -- <command> ...`.
 | `--log <file>` | Write the run log here instead of the default location |
 
 Progress goes to stderr (`[ 40%] Loading Domain/Domain.csproj`), so stdout carries only the report. Ctrl+C cancels.
+
+The audit report opens with **What's left**, and `eject` and `de-olive` end with the same summary (file scans only). Ejecting removes M#, not Olive: an ejected repo still depends on Olive at runtime, and may still have Linux blockers, until that list is empty.
 
 | Exit code | Meaning |
 |---|---|
@@ -215,10 +218,11 @@ Olive is GPL v3, so don't copy its source into this repo or into code the tool g
 | Eject M# | Complete. Tested end to end on generated fixtures. `--generate` needs Windows and a real M# install, and isn't covered by CI. |
 | Replace Olive: .NET equivalents | 7 rewrites: `HasValue`, `IsEmpty`, `OrEmpty`, `HasAny`, `None` (2 overloads), `Lacks` |
 | Replace Olive: more core extensions | Next: picked from audits of real repos |
-| Replace Olive: data layer to EF Core with migrations | Planned ([docs/plan.md](docs/plan.md)) |
-| Replace Olive: MVC layer and Olive.MvcJs front end | Planned |
-| Replace Olive: Audit, CSV, Export, PDF, Hangfire, Email, Security | Planned |
-| Remove Olive package references once unused | Planned |
+| Replace Olive: data layer | Done through the `Platform` library, which generates the same SQL as Olive. Moving to EF Core is planned ([docs/plan.md](docs/plan.md)) |
+| Replace Olive: MVC layer and Olive.MvcJs front end | Done. Compared with real Olive in a test server and in Chromium ([docs/de-olive.md](docs/de-olive.md)) |
+| Replace Olive: Audit, CSV, Export, Email, ApiClient, Microservices, Security | Done |
+| Replace Olive: PDF, Drawing, background tasks | Planned |
+| Remove Olive package references once unused | Done when every Olive member a repo uses is covered |
 
 Audit output from real M# repos decides what comes next. Please share yours, with anything private stripped.
 

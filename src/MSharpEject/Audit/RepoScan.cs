@@ -111,9 +111,20 @@ public static partial class RepoScan
         {
             rules.Add(("windows-api", WindowsApi()));
             rules.Add(("windows-path", WindowsPath()));
+            rules.Add(("windows-exe", ExeLiteral()));
+            rules.Add(("license-file", LicenseFile()));
+            rules.Add(("font", Font()));
         }
         if (ext == ".csproj")
+        {
             rules.Add(("eol-framework", OutOfSupportFramework()));
+            rules.Add(("windows-exe", ExeItem()));
+        }
+        if (ext is ".json" or ".config" or ".xml" or ".yml" or ".yaml")
+        {
+            rules.Add(("windows-path", DriveLetter()));
+            rules.Add(("windows-exe", ExeName()));
+        }
         if (name.StartsWith("Dockerfile", StringComparison.OrdinalIgnoreCase))
             rules.Add(("container-image", WindowsContainer()));
         if (ext is ".json" or ".yml" or ".yaml" or ".config" or ".ps1" or ".bat" or ".cmd" or ".xml" || name == "Jenkinsfile")
@@ -169,12 +180,30 @@ public static partial class RepoScan
     [GeneratedRegex(@"msharp|\bstart\s|\.bat\b|\.cmd\b|\.exe\b", RegexOptions.IgnoreCase)]
     private static partial Regex WindowsOrGeeksCommand();
 
-    [GeneratedRegex(@"\bSystem\.Drawing\b|\bMicrosoft\.Win32\b|\[DllImport|\bRegistry\.|\bSystem\.Windows\.Forms\b|\bSystem\.Management\b")]
+    [GeneratedRegex(@"\bSystem\.Drawing\b|\bMicrosoft\.Win32\b|\[DllImport|\bRegistry\.|\bSystem\.Windows\.Forms\b|\bSystem\.Management\b|\bSystem\.ServiceProcess\b|\bEventLog\b|\bSystem\.DirectoryServices\b|\bWindowsIdentity\b|\bMicrosoft\.Office\.Interop\b|\[ComImport")]
     private static partial Regex WindowsApi();
 
     // Drive letters, or a backslash between path segments inside a regular string literal.
     [GeneratedRegex(@"""[A-Za-z]:\\|@""[^""]*\w\\\w|""[^""\n]*\w\\\\\w[^""\n]*""")]
     private static partial Regex WindowsPath();
+
+    [GeneratedRegex(@"""[^""\n]*\.exe""", RegexOptions.IgnoreCase)]
+    private static partial Regex ExeLiteral();
+
+    [GeneratedRegex(@"(Include|Update)=""[^""]*\.exe""", RegexOptions.IgnoreCase)]
+    private static partial Regex ExeItem();
+
+    [GeneratedRegex(@"[\w-]\.exe\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ExeName();
+
+    [GeneratedRegex(@"(?<![\w/])[A-Za-z]:\\")]
+    private static partial Regex DriveLetter();
+
+    [GeneratedRegex(@"\bSetLicense\s*\(|\.lic""", RegexOptions.IgnoreCase)]
+    private static partial Regex LicenseFile();
+
+    [GeneratedRegex(@"\.(ttf|otf|ttc)""|\bnew\s+FontFamily\s*\(|\bFontSettings\b|\bSetFontsFolders?\b|""(Arial|Calibri|Cambria|Segoe UI|Tahoma|Verdana|Times New Roman|Courier New)""", RegexOptions.IgnoreCase)]
+    private static partial Regex Font();
 
     [GeneratedRegex(@"^\s*FROM\s+(\S*(nanoserver|windowsservercore|servercore|windows)|microsoft/|mcr\.microsoft\.com/dotnet/core/)", RegexOptions.IgnoreCase)]
     private static partial Regex WindowsContainer();

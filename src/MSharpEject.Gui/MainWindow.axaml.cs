@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MSharpEject.Audit;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
         EjectButton.Click += async (_, _) => await PreviewAsync("eject");
         DeOliveButton.Click += async (_, _) => await PreviewAsync("de-olive");
         ApplyButton.Click += async (_, _) => await ApplyAsync();
+        ClaudeButton.Click += async (_, _) => await HandOffToClaudeAsync();
         CancelButton.Click += (_, _) => Cancel();
         SaveButton.Click += async (_, _) => await SaveAsync();
         OpenLogButton.Click += async (_, _) => await OpenPathAsync(LastLogPath);
@@ -112,7 +114,7 @@ public partial class MainWindow : Window
                 {
                     Outcome = null;
                     OutcomeBanner.IsVisible = ChangesTab.IsVisible = false;
-                    if (Tabs.SelectedItem == ChangesTab || Tabs.SelectedItem == null) Tabs.SelectedItem = PackagesTab;
+                    if (Tabs.SelectedItem == ChangesTab || Tabs.SelectedItem == null) Tabs.SelectedItem = LeftTab;
                 }
                 ShowTables();
                 StatusText.Text = result.LoadErrors.Count == 0
@@ -211,7 +213,8 @@ public partial class MainWindow : Window
 
     void SetBusy(bool busy)
     {
-        RunButton.IsVisible = EjectButton.IsVisible = DeOliveButton.IsVisible = !busy;
+        RunButton.IsVisible = EjectButton.IsVisible = DeOliveButton.IsVisible = ClaudeButton.IsVisible = !busy;
+        ClaudeButton.IsEnabled = !busy && Result != null;
         CancelButton.IsVisible = busy;
         BrowseButton.IsEnabled = RepoPath.IsEnabled = SemanticCheck.IsEnabled = VerifyCheck.IsEnabled = AllowDirtyCheck.IsEnabled = ApplyButton.IsEnabled = !busy;
         SaveButton.IsEnabled = !busy && Result != null;
@@ -267,6 +270,8 @@ public partial class MainWindow : Window
         if (Outcome is { } o) Show(ChangesTab, ChangesGrid, "Changes", ResultView.ChangeRows(o), filter);
         if (Result is not { } r) return;
 
+        Show(LeftTab, LeftGrid, "What's left", Remaining.Items(r), filter);
+        VerdictText.Text = string.Join("\n", Remaining.Verdicts(r));
         Show(PackagesTab, PackagesGrid, "Packages", r.Packages, filter);
         Show(DslTab, DslGrid, "M# definitions", ResultView.DslRows(r), filter);
         Show(GeneratedTab, GeneratedGrid, "Generated output", r.Generated, filter);
@@ -299,6 +304,38 @@ public partial class MainWindow : Window
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(Auditor.ToMarkdown(Result));
         StatusText.Text = $"Saved {file.Name}.";
+    }
+
+    async Task HandOffToClaudeAsync()
+    {
+        if (Result is not { } result) return;
+        var cli = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "MSharpEject.exe" : "MSharpEject");
+        var prompt = ClaudeHandoff.Prompt(result, File.Exists(cli) ? cli : null);
+        var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "msharp-eject")).FullName;
+        var promptFile = Path.Combine(dir, "claude-prompt.md");
+        await File.WriteAllTextAsync(promptFile, prompt);
+
+        if (ClaudeHandoff.FindClaude() == null)
+        {
+            await CopyAsync(prompt);
+            StatusText.Text = $"Claude Code isn't installed ({ClaudeHandoff.InstallUrl}). The brief is on the clipboard and in {promptFile}.";
+            return;
+        }
+        try
+        {
+            Process.Start(ClaudeHandoff.Terminal(result.Repo, promptFile))?.Dispose();
+            StatusText.Text = "Opened Claude Code in a new terminal. Run the audit again when it's done.";
+        }
+        catch (Exception ex)
+        {
+            await CopyAsync(prompt);
+            StatusText.Text = $"Couldn't open a terminal ({ex.Message}). The brief is on the clipboard and in {promptFile}.";
+        }
+    }
+
+    async Task CopyAsync(string text)
+    {
+        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(text);
     }
 
     Task OpenRepoFileAsync(string? relative) =>

@@ -1,0 +1,1 @@
+{ "compilerOptions": { "module": "amd", "target": "es2017", "outDir": "build", "rootDir": "../../src/MSharpEject/Replacement/Library/FrontEnd", "noImplicitAny": false, "skipLibCheck": true, "lib": ["es2017", "dom"], "types": [] }, "include": ["../../src/MSharpEject/Replacement/Library/FrontEnd/**/*.ts"] }

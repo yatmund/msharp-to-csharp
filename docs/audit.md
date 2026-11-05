@@ -6,9 +6,29 @@ The audit never changes source files. The full (semantic) mode runs `dotnet rest
 
 Folders skipped everywhere: `bin`, `obj`, `node_modules`, `.git`, `.vs`, `packages`, `wwwroot/lib`.
 
+## What's left
+
+The first section, and the one to read after each step. Two verdicts:
+
+- **Olive-free**: no when any Olive or other Geeks runtime package is still referenced (M# build packages don't count), or, in semantic mode, any Olive symbol is still used. Without semantic mode a clean result is only *unconfirmed*.
+- **Linux-ready**: no while any build step or deployment blocker below remains. A clean result means the scans found nothing, not that the app has been run on Linux.
+
+Then one row per remaining Olive area and per blocker rule, saying what this tool does about it and what's manual:
+
+| Area | Packages | This tool |
+|---|---|---|
+| M# build and tooling | `MSharp*`, `msharp-build`, `GCop` | `eject` removes them |
+| Data layer | `Olive.Entities*` | `de-olive` moves it to the Platform library, which generates the same SQL as Olive |
+| MVC | `Olive.Mvc*`, `Olive.Web*` | `de-olive` moves it to the Platform library |
+| Front end | Geeks npm packages (Olive.MvcJs) | `de-olive` replaces it with the Platform front end |
+| Service integrations | every other `Olive.*`: storage, background tasks, email, PDF, export, audit, security | `de-olive` replaces Audit, CSV, Export, Email, ApiClient, Microservices and Security; the rest is manual |
+| Core extensions and runtime | `Olive` | `de-olive` rewrites the extension calls listed in [de-olive.md](de-olive.md); the rest is manual |
+
+`eject` and `de-olive` on the command line print the same summary (file scans only) after applying. The desktop app shows it in the **What's left** tab.
+
 ## Geeks packages and tools
 
-Every dependency published by Geeks Ltd. This is the list `eject` and `de-olive` have to empty.
+Every dependency published by Geeks Ltd. The repo is off M# and Olive only when this list is empty.
 
 | Source | Matched when |
 |---|---|
@@ -16,7 +36,7 @@ Every dependency published by Geeks Ltd. This is the list `eject` and `de-olive`
 | `.config/dotnet-tools.json` | Tool id matches the same rule |
 | `package.json` `dependencies` / `devDependencies` | Name matches the same rule, or the version spec points at the `Geeksltd` GitHub org (e.g. `"olive.mvc": "Geeksltd/Olive.MvcJs#2.3.33"`) |
 
-Packages referenced only from `M#/Model` and `M#/UI` disappear with `eject`. Every other one is removed by `de-olive`.
+Packages referenced only from `M#/Model` and `M#/UI` disappear with `eject`. The rest stay until their Olive usage is replaced; see [What's left](#whats-left).
 
 ## M# definitions
 
@@ -61,8 +81,11 @@ Things that would stop the app building or running on Linux or in a standard con
 
 | Rule | Files | Matches | Fix |
 |---|---|---|---|
-| `windows-api` | `*.cs` | `System.Drawing`, `Microsoft.Win32`, `[DllImport`, `Registry.`, `System.Windows.Forms`, `System.Management` | SkiaSharp or ImageSharp in place of `System.Drawing`; configuration in place of the registry; cross-platform libraries otherwise |
-| `windows-path` | `*.cs` | Drive letters (`"C:\..."`), or a backslash between path segments in a string (`"App_Data\\Files"`, `@"App_Data\Files"`) | `Path.Combine`, or forward slashes |
+| `windows-api` | `*.cs` | `System.Drawing`, `Microsoft.Win32`, `[DllImport`, `Registry.`, `System.Windows.Forms`, `System.Management`, `System.ServiceProcess`, `EventLog`, `System.DirectoryServices`, `WindowsIdentity`, `Microsoft.Office.Interop`, `[ComImport` | SkiaSharp or ImageSharp in place of `System.Drawing`; configuration in place of the registry; cross-platform libraries otherwise |
+| `windows-path` | `*.cs`, `*.json`, `*.config`, `*.xml`, `*.yml`, `*.yaml` | Drive letters (`"C:\..."`), or in C# a backslash between path segments in a string (`"App_Data\\Files"`, `@"App_Data\Files"`) | `Path.Combine`, or forward slashes, with the root in configuration |
+| `windows-exe` | `*.cs`, `*.csproj`, config files | A string ending `.exe"`, a project item including an `.exe`, or an `.exe` name in config (a document converter, `wkhtmltopdf.exe`) | A Linux build of the tool installed in the image, or a library or service |
+| `license-file` | `*.cs` | `SetLicense(` or a `".lic"` path (Aspose and similar) | Ship the licence file with the deployment and load it from a path that resolves on Linux |
+| `font` | `*.cs` | `.ttf`/`.otf` paths, `new FontFamily(`, `FontSettings`, `SetFontsFolder`, or a Windows font name such as `"Calibri"` | Install the fonts in the image or ship the font files; Linux images have almost none |
 | `container-image` | `Dockerfile*` | `FROM` a Windows image (`nanoserver`, `windowsservercore`), or a retired one (`microsoft/aspnetcore*`, `microsoft/dotnet`, `mcr.microsoft.com/dotnet/core/*`) | Eject switches these to `mcr.microsoft.com/dotnet/aspnet|sdk:<version>` |
 | `eol-framework` | `*.csproj` | A target framework Microsoft no longer supports: `netcoreapp*`, `net5.0`–`net7.0`, .NET Framework below 4.6.2 | Retarget to a supported version (currently `net8.0` or later) and re-run the tests. The M# template targets `net6.0`. |
 | `geeks-reference` | `*.json`, `*.yml`, `*.yaml`, `*.config`, `*.xml`, `*.ps1`, `*.bat`, `*.cmd`, `Jenkinsfile` | `geeks.ltd`, `geeksltd`, `msharp.co.uk`, or the word `msharp` | Remove, or swap in your own infrastructure (CI templates, licensing endpoints, front-end packages) |

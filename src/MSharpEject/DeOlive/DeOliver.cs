@@ -52,23 +52,48 @@ public static class DeOliver
             if (count % 25 == 0) log.Progress(0.35 + 0.1 * count / documents.Count, $"Rewriting Olive calls ({count}/{documents.Count} files)");
         });
 
+        var working = loaded.Workspace.CurrentSolution;
+        var summaries = new Dictionary<DocumentId, string>();
         foreach (var (document, rewrite) in rewrites.OrderBy(r => r.Document.FilePath, StringComparer.Ordinal))
         {
             skipped += rewrite.SkippedInQueries;
             if (rewrite.Applied.Count == 0) continue;
             foreach (var (method, count) in rewrite.Applied) totals[method] = totals.GetValueOrDefault(method) + count;
-            var (_, encoding) = FileText.Read(document.FilePath!);
-            var summary = string.Join(", ", rewrite.Applied.OrderBy(a => a.Key).Select(a => $"{a.Key} ×{a.Value}"));
-            changes.Add(new EditFile(Rel(document.FilePath!), "Olive → .NET: " + summary, rewrite.NewText, encoding));
+            summaries[document.Id] = "Olive → .NET: " + string.Join(", ", rewrite.Applied.OrderBy(a => a.Key).Select(a => $"{a.Key} ×{a.Value}"));
+            working = working.WithDocumentText(document.Id, Microsoft.CodeAnalysis.Text.SourceText.From(rewrite.NewText));
         }
 
-        log.Info($"{changes.Count} files to change: " + string.Join(", ", totals.OrderByDescending(t => t.Value).Select(t => $"{t.Key} ×{t.Value}")));
+        log.Progress(0.45, "Moving code to the replacement library");
+        var ids = documents.Select(d => d.Id).ToHashSet();
+        Replacement.SwapResult swap;
+        using (log.Time("replacement library"))
+            swap = await Replacement.LibrarySwap.PlanAsync(repo, working, d => ids.Contains(d.Id), log, cancel);
+
+        foreach (var document in documents)
+        {
+            var text = (await swap.Final.GetDocument(document.Id)!.GetTextAsync(cancel)).ToString();
+            var (onDisk, encoding) = FileText.Read(document.FilePath!);
+            if (text == onDisk) continue;
+            var reason = string.Join("; ", new[] { summaries.GetValueOrDefault(document.Id), swap.MovedFiles.Contains(Rel(document.FilePath!)) ? "Olive → replacement library" : null }.OfType<string>());
+            changes.Add(new EditFile(Rel(document.FilePath!), reason, text, encoding));
+        }
+        changes.AddRange(swap.Changes);
+        notes.AddRange(swap.Notes);
+        if (swap.OliveRemoved) notes.Add("Olive is no longer referenced: the replacement library covers everything this repo uses.");
+        else if (swap.Gaps.Count > 0)
+        {
+            foreach (var gap in swap.Gaps) log.Detail("Not in the replacement library yet: " + gap);
+            notes.Add($"{swap.Gaps.Count} Olive members aren't in the replacement library yet, so Olive stays referenced. Most used: {string.Join(", ", swap.Gaps.Take(10))}. Full list in the log.");
+        }
+
+        log.Info($"{changes.Count} changes; rewrites: " + string.Join(", ", totals.OrderByDescending(t => t.Value).Select(t => $"{t.Key} ×{t.Value}")) + $"; {swap.MovedFiles.Count} files moved to the replacement library");
         if (skipped > 0)
         {
-            var note = $"{skipped} Olive calls inside query expressions were left alone: Olive translates them to SQL. They move with the data layer to EF Core.";
+            var note = $"{skipped} Olive calls inside query expressions were left alone: Olive translates them to SQL. They move with the data layer.";
             log.Info(note);
             notes.Add(note);
         }
+
         if (changes.Count == 0)
         {
             log.Progress(1, "Nothing to rewrite");

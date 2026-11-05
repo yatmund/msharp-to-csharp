@@ -139,6 +139,13 @@ public class RepoScanTests
     [Arguments("Domain/Domain.csproj", "<TargetFramework>net6.0</TargetFramework>", "eol-framework")]
     [Arguments("Domain/Domain.csproj", "<TargetFramework>netcoreapp3.1</TargetFramework>", "eol-framework")]
     [Arguments("Jenkinsfile", "git 'https://github.com/Geeksltd/MasterJenkinsfile'", "geeks-reference")]
+    [Arguments("Logic/Convert.cs", "Process.Start(\"soffice.exe\", args);", "windows-exe")]
+    [Arguments("Logic/Pdf.cs", "new License().SetLicense(\"Aspose.Words.lic\");", "license-file")]
+    [Arguments("Logic/Pdf.cs", "var font = new FontFamily(\"Calibri\");", "font")]
+    [Arguments("Logic/Svc.cs", "EventLog.WriteEntry(\"App\", message);", "windows-api")]
+    [Arguments("Website/appsettings.json", "\"Temp\": \"D:\\\\Temp\"", "windows-path")]
+    [Arguments("Website/appsettings.json", "\"Converter\": \"wkhtmltopdf.exe\"", "windows-exe")]
+    [Arguments("Website/Website.csproj", "<None Include=\"Tools\\pdf.exe\" CopyToOutputDirectory=\"Always\" />", "windows-exe")]
     public async Task DeploymentBlockers_flags(string file, string line, string rule)
     {
         var findings = RepoScan.DeploymentBlockers(file, "// first\n" + line).ToList();
@@ -152,6 +159,8 @@ public class RepoScanTests
     [Arguments("Logic/Ok.cs", "var p = Path.Combine(\"App_Data\", \"Files\");")]
     [Arguments("Logic/Ok.cs", "var s = \"line\\nbreak\";")]
     [Arguments("Logic/Ok.cs", "using SkiaSharp;")]
+    [Arguments("Logic/Ok.cs", "var config = \"app.exe.config\" + name;")]
+    [Arguments("Website/appsettings.json", "\"Url\": \"https://example.com/a\"")]
     [Arguments("Website/Dockerfile", "FROM mcr.microsoft.com/dotnet/aspnet:10.0")]
     [Arguments("Domain/Domain.csproj", "<TargetFramework>net8.0</TargetFramework>")]
     [Arguments("Domain/Domain.csproj", "<TargetFrameworks>net10.0;net472</TargetFrameworks>")]

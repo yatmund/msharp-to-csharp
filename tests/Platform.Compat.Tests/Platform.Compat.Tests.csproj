@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);NU1701;NU1608;CS0618</NoWarn>
+  </PropertyGroup>
+
+  <!-- Real Olive, test-only: replacements are checked against it. It is GPL and never ships with the tool. -->
+  <ItemGroup>
+    <PackageReference Include="Olive" Version="2.1.385" />
+    <PackageReference Include="Olive.Entities" Version="2.1.189" />
+    <PackageReference Include="Olive.Entities.Data" Version="2.1.196" />
+    <PackageReference Include="Olive.Entities.Data.SqlServer" Version="2.1.122" />
+    <PackageReference Include="Olive.Audit" Version="2.1.122" />
+    <PackageReference Include="Olive.CSV" Version="2.1.115" />
+    <PackageReference Include="Olive.Export" Version="2.1.113" />
+    <PackageReference Include="Olive.ApiClient" Version="2.2.112" />
+    <PackageReference Include="Olive.Microservices" Version="2.1.113" />
+    <PackageReference Include="Olive.Web" Version="3.1.111" />
+    <PackageReference Include="Olive.Mvc.Security" Version="3.1.112" />
+    <PackageReference Include="Olive.Mvc" Version="3.1.149" />
+    <PackageReference Include="Olive.Email" Version="3.1.120" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
+    <PackageReference Include="TUnit" Version="1.76.45" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\MSharpEject\Replacement\Library\**\*.cs" Link="Library\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

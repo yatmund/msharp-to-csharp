@@ -112,7 +112,7 @@ namespace Platform.Mvc
     public class TimeAttribute : ValidationAttribute, IClientModelValidator
     {
         public override bool IsValid(object value) =>
-            value == null || value is TimeSpan || (value is string s && (s.Length == 0 || TimeSpan.TryParse(s, out _) || DateTime.TryParse(s, out _)));
+            value == null || value is TimeSpan || (value is string s && (s.Length == 0 || System.Text.RegularExpressions.Regex.IsMatch(s, @"^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$")));
 
         public void AddValidation(ClientModelValidationContext context)
         {
